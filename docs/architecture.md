@@ -4,9 +4,9 @@ How the Flutter shader debugger works, what is built, and what comes next.
 Read this before changing the analyzer, the instrumenter or the runtime.
 
 The debugger lets you pick a variable in a fragment shader (`.frag`) and see it
-as a live heatmap where the shader is drawn in the running app (M2), or click a
-pixel to read the variable's exact value there (M3). Next come auto-generated
-sliders for uniforms (M4).
+as a live heatmap where the shader is drawn in the running app (M2), click a
+pixel to read the variable's exact value there (M3), and override the shader's
+uniforms with generated sliders while the app runs (M4).
 
 ## Overview
 
@@ -47,7 +47,8 @@ Running app (debug mode, package:shader_debugger)
 - **`ShaderDebugger`** loads the probe program, checks the probe's version
   stamp, and answers the extension through service extensions:
   `ext.shader_debugger.getInfo`, `showHeatmap`, `hideHeatmap`, `readPixel`,
-  `setPixelSelectMode` and `pickPixel`. Clicks in select mode come back as
+  `setPixelSelectMode`, `pickPixel`, `getUniforms`, `setUniformOverride` and
+  `clearUniformOverrides`. Clicks in select mode come back as
   `shader_debugger.pixelPicked` events on the Extension stream.
 - **Pixel select mode** (`pixel_select.dart`) is an overlay, inserted into the
   app's root `Overlay`, modeled on the widget inspector's select mode.
@@ -109,6 +110,30 @@ float32 of its true value, and values outside 0..1 are not clamped). The
 default target format, and the engine `flutter test` uses, round to 8 bits
 per channel. JSON has no NaN or infinities, so those components travel as the
 strings `NaN`, `Infinity` and `-Infinity`.
+
+## How a uniform gets overridden
+
+1. The Uniforms tab lists the uniforms the analyzer found, in declaration
+   order, and reads the app's values with `getUniforms` twice a second while
+   it is open. `DebugShader` already records every value the app sets.
+2. Each float uniform gets an Override switch. Turned on, it starts from the
+   app's value and shows a slider per component (x, y, z, w; `[column].row`
+   for matrices), ranged from that value, and a field for exact values.
+   Samplers are listed but set by the app; Flutter cannot set ints, bools or
+   arrays from Dart, so those are listed as such.
+3. `setUniformOverride(asset, name, values)` stores the override in
+   `ShaderDebugger`, after checking that the shader has a float uniform of
+   that name with exactly that many components, and marks the render boxes
+   that painted the asset's shaders for repaint, so even a static painter
+   shows the change.
+4. On every paint, `DebugShader.shader` puts the overrides on the original
+   shader over the app's values, and on the probe when a heatmap is shown.
+   `readPixel` uses them too. Dropping an override puts the app's recorded
+   value back, even if the app does not set it again.
+
+The page shows a change at once, and merges slider moves made faster than
+the app answers: while one override call is in flight, only the latest value
+waits for it.
 
 ## Probes
 
@@ -307,8 +332,8 @@ with Impeller (`tool/e2e_heatmap.py`).
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
 | M2 | Heatmap mode end to end | Built. Verified end to end through a real Dart Tooling Daemon and `flutter run`; the DevTools page itself still needs a check in a browser. |
-| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. Select mode (the overlay) is covered by widget tests; its e2e checks have not run yet, and the page still needs a check in a browser. |
-| M4 | Auto sliders for uniforms (the analyzer already knows their names and types) | Not started |
+| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. Select mode's overlay is shown in the real app, and picking sees the shader under it. The page still needs a check in a browser. |
+| M4 | Uniform overrides with generated sliders | Built. Verified end to end on macOS: overriding `uSize` moves `d` through the probe, and clearing it brings the app's value back. The Uniforms tab still needs a check in a browser. |
 
 **M2's extension side** (`packages/shader_debugger_devtools`):
 - `ShaderDebuggerController` runs the flow: find the app's package directory
@@ -327,6 +352,9 @@ with Impeller (`tool/e2e_heatmap.py`).
   coordinates, and shows each component with nine significant
   digits (ints and bools as such). Picking another value, part or line
   re-reads it at the same pixel.
+- M4: the side panel has two tabs, Inspect and Uniforms. The Uniforms tab
+  overrides float uniforms with sliders or typed values (see "How a uniform
+  gets overridden").
 - `ports.dart` abstracts the app and the files. `devtools_ports.dart` is the
   only code that uses DevTools' globals, so the controller and the page are
   tested with fakes. `test/live_test.dart` runs the controller against a real
@@ -337,7 +365,9 @@ with Impeller (`tool/e2e_heatmap.py`).
   picker and the Pixel section. The example app's gallery has a shader for
   each: `lights.frag` (structs in an array), `checkerboard.frag` (a matrix,
   an `ivec2`, a `bool`) and `ripple.frag` (`out` parameters, a sampler).
-- M4, sliders for uniforms.
+- After the MVP: iteration and call selectors for values in loops and
+  functions called more than once, and types of expressions (hovering
+  `length(uv)`).
 
 ## Open questions
 

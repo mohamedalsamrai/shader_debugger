@@ -2,6 +2,7 @@
 library;
 
 import 'package:devtools_app_shared/ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shader_debugger_core/shader_debugger_core.dart';

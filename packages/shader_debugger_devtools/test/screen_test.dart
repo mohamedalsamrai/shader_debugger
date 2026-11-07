@@ -171,6 +171,35 @@ void main() {
     expect(app.reloads, 1);
   });
 
+  testWidgets('overrides a uniform from the Uniforms tab', (tester) async {
+    app.runtime.value = true;
+    await pumpScreen(tester, height: 1100);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Uniforms'));
+    await tester.pumpAndSettle();
+    expect(find.text('uA'), findsOneWidget);
+    expect(find.text('App: 0.1, 0.2, 0.9, 1.0'), findsOneWidget);
+
+    // Overriding starts from the app's value, with a slider per component.
+    await tester.tap(find.byType(Switch).at(1));
+    await tester.pumpAndSettle();
+    expect(app.overrides['uA'], [0.1, 0.2, 0.9, 1]);
+    expect(find.byType(Slider), findsNWidgets(4));
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Values'),
+      '0, 1, 0, 1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(app.overrides['uA'], [0, 1, 0, 1]);
+
+    await tester.tap(find.text('Reset all'));
+    await tester.pumpAndSettle();
+    expect(app.overrides, isEmpty);
+    expect(find.byType(Slider), findsNothing);
+  });
+
   testWidgets('a failed connection can be retried', (tester) async {
     app.info = const AppInfo(
       protocolVersion: 99,

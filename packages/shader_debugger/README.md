@@ -3,7 +3,8 @@
 Debug-only runtime for the Flutter shader debugger. Add it to an app to get the
 Shader Debugger tab in DevTools.
 
-**Status: heatmap (M2) and pixel inspector (M3) built.** See
+**Status: heatmap (M2), pixel inspector (M3) and uniform overrides (M4)
+built.** See
 [docs/architecture.md](../../docs/architecture.md).
 
 ## Use
@@ -46,7 +47,11 @@ root `Overlay`, which `MaterialApp`, `CupertinoApp` and `WidgetsApp` provide.
   it by name.
 - `ShaderDebugger` loads the probe, checks its version stamp, and answers the
   DevTools extension through `ext.shader_debugger.getInfo`, `showHeatmap`,
-  `hideHeatmap`, `readPixel`, `setPixelSelectMode` and `pickPixel`.
+  `hideHeatmap`, `readPixel`, `setPixelSelectMode`, `pickPixel`,
+  `getUniforms`, `setUniformOverride` and `clearUniformOverrides`.
+- Uniform overrides replace the app's values on every paint, on the shader
+  and on the probe, until DevTools drops them; the app's own values then
+  apply again.
 - Pixel select mode works like the widget inspector's select mode: an
   overlay takes the app's clicks, highlights the pixel under the pointer,
   and reports each click to DevTools, until it is turned off there or with

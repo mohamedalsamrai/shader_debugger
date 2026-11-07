@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:ui' show Offset, Size;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -484,6 +486,100 @@ void main() {
     other.dispose();
     await pumpEventQueue();
     expect(app.selecting, isNull);
+  });
+
+  group('uniforms', () {
+    setUp(connect);
+
+    test("lists the shader's uniforms, and which can be overridden", () {
+      expect(
+        [
+          for (final uniform in controller.uniforms)
+            (uniform.name, '${uniform.type}', uniform.components),
+        ],
+        [('uSize', 'vec2', 2), ('uA', 'vec4', 4), ('uB', 'vec4', 4)],
+      );
+      expect(controller.uniforms[1].componentNames, ['x', 'y', 'z', 'w']);
+      expect(const ShaderUniform('m', GlslType.mat2).componentNames, [
+        '[0].x',
+        '[0].y',
+        '[1].x',
+        '[1].y',
+      ]);
+      expect(
+        const ShaderUniform('image', GlslType.sampler2D).canOverride,
+        isFalse,
+      );
+      expect(const ShaderUniform('n', GlslType.intType).components, isNull);
+    });
+
+    test("reads the app's values", () async {
+      await controller.refreshUniforms();
+      expect(controller.uniformValues['uA'], [0.1, 0.2, 0.9, 1]);
+      expect(controller.uniformOverrides, isEmpty);
+    });
+
+    test('overrides a uniform until cleared', () async {
+      await controller.setUniformOverride('uA', [0, 1, 0, 1]);
+      expect(app.overrides, {
+        'uA': [0, 1, 0, 1],
+      });
+      expect(controller.uniformOverrides['uA'], [0, 1, 0, 1]);
+      await controller.clearUniformOverride('uA');
+      expect(app.overrides, isEmpty);
+      expect(controller.uniformOverrides, isEmpty);
+    });
+
+    test('changes made while one is on its way are merged', () async {
+      final hold = Completer<void>();
+      app.holdOverrides = hold.future;
+      final first = controller.setUniformOverride('uA', [0, 0, 0, 1]);
+      unawaited(controller.setUniformOverride('uA', [0.5, 0, 0, 1]));
+      unawaited(controller.setUniformOverride('uA', [1, 0, 0, 1]));
+      // The page shows the latest at once.
+      expect(controller.uniformOverrides['uA'], [1, 0, 0, 1]);
+      app.holdOverrides = null;
+      hold.complete();
+      await first;
+      expect(
+        [for (final (_, values) in app.overrideCalls) values],
+        [
+          [0, 0, 0, 1],
+          [1, 0, 0, 1],
+        ],
+      );
+      expect(app.overrides['uA'], [1, 0, 0, 1]);
+    });
+
+    test('a rejected override is reported and dropped', () async {
+      await controller.setUniformOverride('uA', [1, 2]);
+      expect(
+        controller.uniformsError,
+        contains('no float uniform uA with 2 components'),
+      );
+      expect(controller.uniformOverrides, isEmpty);
+    });
+
+    test('watching reads the values until stopped', () async {
+      final watched = ShaderDebuggerController(
+        app: app,
+        workspace: workspace,
+        uniformRefresh: const Duration(milliseconds: 5),
+      )..start();
+      addTearDown(watched.dispose);
+      await pumpEventQueue();
+      watched.watchUniforms(true);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(watched.uniformValues['uSize'], [400, 300]);
+      app.uniformValues['uSize'] = [800, 600];
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(watched.uniformValues['uSize'], [800, 600]);
+
+      watched.watchUniforms(false);
+      app.uniformValues['uSize'] = [1, 1];
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(watched.uniformValues['uSize'], [800, 600]);
+    });
   });
 
   test('pixel values that JSON cannot carry arrive as strings', () {

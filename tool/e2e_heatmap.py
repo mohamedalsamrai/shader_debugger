@@ -80,10 +80,10 @@ def call(method, params, timeout=300):
     return wait(lambda m: m.get('id') == request_id, timeout)
 
 
-def extension(name, **params):
+def extension(method, /, **params):
     message = call('app.callServiceExtension', {
         'appId': app_id,
-        'methodName': 'ext.shader_debugger.' + name,
+        'methodName': 'ext.shader_debugger.' + method,
         'params': {key: str(value) for key, value in params.items()},
     })
     if 'error' in message:
@@ -184,6 +184,23 @@ try:
               'read %r, expected d = %.9f' % (value, expected))
         stale = extension('readPixel', asset=ASSET, stamp=1, x=pick['x'], y=pick['y'])
         check('readPixel checks the stamp', stale.get('reason') == 'probeNotLoaded', stale)
+
+        # Uniform overrides: a uSize of twice the picked point puts it at the
+        # center, where d is 0, and the probe must see that.
+        values = extension('getUniforms', asset=ASSET).get('values') or {}
+        check("getUniforms reads the app's uSize",
+              values.get('uSize') == [pick['width'], pick['height']], values)
+        applied = extension('setUniformOverride', asset=ASSET, name='uSize',
+                            values='%r,%r' % (2 * pick['x'], 2 * pick['y']))
+        check('setUniformOverride applies', applied.get('applied') is True, applied)
+        centered = extension('readPixel', asset=ASSET, stamp=2, x=pick['x'], y=pick['y'],
+                             instance=pick['instance'])
+        # GPU division is not exact: 0 within float32 rounding, not exactly.
+        check('the probe sees the override', abs((centered.get('value') or [1])[0]) < 1e-6, centered)
+        extension('clearUniformOverrides', asset=ASSET)
+        again = extension('readPixel', asset=ASSET, stamp=2, x=pick['x'], y=pick['y'],
+                          instance=pick['instance'])
+        check("clearing brings the app's value back", again.get('value') == reading.get('value'), again)
 
     # Select mode, like the widget inspector's: an overlay takes the clicks,
     # and picking still sees the shader under it.
