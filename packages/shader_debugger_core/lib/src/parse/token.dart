@@ -3,7 +3,14 @@ library;
 
 /// The lexical class of a [Token]. Keywords are [identifier]s; the parser
 /// tells them apart by text.
-enum TokenKind { identifier, intLiteral, floatLiteral, string, punctuation, unknown }
+enum TokenKind {
+  identifier,
+  intLiteral,
+  floatLiteral,
+  string,
+  punctuation,
+  unknown,
+}
 
 /// Where a token came from.
 enum TokenOrigin {
@@ -58,15 +65,10 @@ final class Token {
 
   /// This token moved to `[offset, end)` with [origin], as when it is
   /// produced by a macro expansion or an include.
-  Token relocated(int offset, int end, TokenOrigin origin) => Token(
-    kind,
-    text,
-    offset,
-    end,
-    origin: origin,
-    spaceBefore: spaceBefore,
-  );
+  Token relocated(int offset, int end, TokenOrigin origin) =>
+      Token(kind, text, offset, end, origin: origin, spaceBefore: spaceBefore);
 
   @override
-  String toString() => '$kind "$text" @$offset${fromSource ? '' : ' (${origin.name})'}';
+  String toString() =>
+      '$kind "$text" @$offset${fromSource ? '' : ' (${origin.name})'}';
 }

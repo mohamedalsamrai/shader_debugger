@@ -61,7 +61,11 @@ final class _Lexer {
         );
         if (punctuator.isEmpty) {
           _i++;
-          errors.add((offset: start, end: _i, message: 'Unexpected character "${text[start]}".'));
+          errors.add((
+            offset: start,
+            end: _i,
+            message: 'Unexpected character "${text[start]}".',
+          ));
           kind = TokenKind.unknown;
         } else {
           _i += punctuator.length;
@@ -90,12 +94,18 @@ final class _Lexer {
         _newline = true;
         _space = true;
         _i++;
-      } else if (c == _spaceChar || c == _tab || c == _cr || c == 0x0B || c == 0x0C) {
+      } else if (c == _spaceChar ||
+          c == _tab ||
+          c == _cr ||
+          c == 0x0B ||
+          c == 0x0C) {
         _space = true;
         _i++;
       } else if (c == _backslash && _at(_i + 1) == _newlineChar) {
         _i += 2; // Line continuation.
-      } else if (c == _backslash && _at(_i + 1) == _cr && _at(_i + 2) == _newlineChar) {
+      } else if (c == _backslash &&
+          _at(_i + 1) == _cr &&
+          _at(_i + 2) == _newlineChar) {
         _i += 3;
       } else if (c == _slash && _at(_i + 1) == _slash) {
         final newline = text.indexOf('\n', _i);
@@ -104,7 +114,11 @@ final class _Lexer {
       } else if (c == _slash && _at(_i + 1) == _star) {
         final close = text.indexOf('*/', _i + 2);
         if (close < 0) {
-          errors.add((offset: _i, end: text.length, message: 'Unterminated comment.'));
+          errors.add((
+            offset: _i,
+            end: text.length,
+            message: 'Unterminated comment.',
+          ));
           _i = text.length;
         } else {
           _i = close + 2;
@@ -194,7 +208,8 @@ const _x = 0x78;
 
 bool _isDigit(int c) => c >= 0x30 && c <= 0x39;
 
-bool _isHexDigit(int c) => _isDigit(c) || ((c | 0x20) >= 0x61 && (c | 0x20) <= 0x66);
+bool _isHexDigit(int c) =>
+    _isDigit(c) || ((c | 0x20) >= 0x61 && (c | 0x20) <= 0x66);
 
 bool _isIdentifierStart(int c) =>
     (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) || c == 0x5F;
