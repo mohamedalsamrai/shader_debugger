@@ -4,9 +4,18 @@ The Shader Debugger DevTools extension: a Flutter web app that DevTools loads in
 a tab. It is not published on its own. Its compiled output ships inside
 `package:shader_debugger` under `extension/devtools/build/`.
 
-**Status: placeholder.** It shows the connection to the app and the
-type-to-visualization table. The variable picker, heatmap and pixel inspector
-arrive in M2 and M3.
+**Status: heatmap mode (M2).** Pick a shader the app draws through
+`DebugShader`, click a line, choose a value, and press Show heatmap. The
+extension writes the probe through the Dart Tooling Daemon, hot reloads, and
+has the app draw it; the range can change without a reload. The pixel
+inspector arrives in M3.
+
+| File | What it does |
+|---|---|
+| `lib/src/controller.dart` | The flow and its state; no DevTools imports. |
+| `lib/src/screen.dart` | The page. |
+| `lib/src/ports.dart` | What the controller needs from the app and the files. |
+| `lib/src/devtools_ports.dart` | Those ports on top of DevTools' `serviceManager` and `dtdManager`. |
 
 ## Develop
 
@@ -16,6 +25,15 @@ connecting to a running app):
 ```sh
 flutter run -d chrome --dart-define=use_simulated_environment=true
 ```
+
+## Test
+
+```sh
+flutter test   # controller and page, with fakes
+```
+
+`test/live_test.dart` runs the controller against a real session started by
+`tool/devtools_session.py` (see the repo's CLAUDE.md).
 
 ## Build into package:shader_debugger
 

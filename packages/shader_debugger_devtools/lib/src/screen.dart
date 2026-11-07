@@ -288,14 +288,15 @@ class _SidePanel extends StatelessWidget {
         const SizedBox(height: 12),
         _RangeEditor(controller: controller),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             FilledButton.icon(
               icon: const Icon(Icons.gradient),
               label: const Text('Show heatmap'),
               onPressed: controller.canShow ? controller.showHeatmap : null,
             ),
-            const SizedBox(width: 8),
             OutlinedButton(
               onPressed: controller.status == HeatmapStatus.off
                   ? null
@@ -479,7 +480,7 @@ class _Status extends StatelessWidget {
                 controller.probeFile?.toFilePath() ?? '',
                 style: theme.fixedFontStyle,
               ),
-              Row(
+              Wrap(
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.copy, size: 16),

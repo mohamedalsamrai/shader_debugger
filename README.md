@@ -19,7 +19,7 @@ and the plan.
 |---|---|---|
 | [`shader_debugger_core`](packages/shader_debugger_core) | Pure Dart: GLSL analyzer and probe instrumenter. | M1 done |
 | [`shader_debugger`](packages/shader_debugger) | Debug-only runtime. It also ships the DevTools extension. | Heatmap runtime works |
-| [`shader_debugger_devtools`](packages/shader_debugger_devtools) | The DevTools extension (Flutter web). | Placeholder |
+| [`shader_debugger_devtools`](packages/shader_debugger_devtools) | The DevTools extension (Flutter web). | Heatmap mode works |
 | [`example`](packages/shader_debugger/example) | Demo app that draws the example shader the docs use. | Runs (checked on macOS) |
 
 ## Develop

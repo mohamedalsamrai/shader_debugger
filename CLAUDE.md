@@ -34,10 +34,14 @@ resolves against the root `pubspec.lock`.
   `shaders/_debug/probe.frag` is the placeholder probe the extension
   overwrites. `test/probes/gradient_capture_d.frag` is the instrumenter's
   golden output, which the runtime tests draw.
-- `packages/shader_debugger_devtools/`: the DevTools extension (Flutter web; a
-  placeholder until the parser exists).
-- `tool/e2e_heatmap.py`: end-to-end check through the real Flutter tool on
-  macOS (write probe, hot reload, service extensions).
+- `packages/shader_debugger_devtools/`: the DevTools extension (Flutter web).
+  `lib/src/controller.dart` runs the heatmap flow; `lib/src/screen.dart` is
+  the page; `lib/src/ports.dart` abstracts the app and the files, and
+  `lib/src/devtools_ports.dart` implements them on DevTools' globals.
+- `tool/e2e_heatmap.py`: end-to-end check of the runtime through the real
+  Flutter tool on macOS (write probe, hot reload, service extensions).
+- `tool/devtools_session.py`: a real DevTools session for the example (DTD
+  with the repo as workspace root, `flutter run`, DevTools) without an IDE.
 
 ## Commands
 
@@ -47,6 +51,14 @@ flutter analyze                       # at the root: analyzes every package
 (cd packages/shader_debugger_core && dart test)   # includes impellerc compile checks
 (cd packages/shader_debugger/example && flutter test)   # runtime, real shaders
 python3 tool/e2e_heatmap.py [SCREENSHOT_DIR]            # end to end, macOS
+(cd packages/shader_debugger_devtools && flutter test)  # extension, with fakes
+
+# The extension against a real session: build it, start the session (prints
+# the DevTools URL), then run the live test from another shell.
+python3 tool/devtools_session.py
+(cd packages/shader_debugger_devtools && \
+  SHADER_DEBUGGER_LIVE=../../.dart_tool/shader_debugger_session/session.json \
+  flutter test test/live_test.dart)
 
 # After changing the instrumenter's output, regenerate the golden probe
 (cd packages/shader_debugger_core && UPDATE_GOLDENS=1 dart test test/instrument)
@@ -89,6 +101,10 @@ OUT="$(mktemp -d)"
   use's offsets, included code the `#include`'s); that is the source map.
 - Probes are edited copies of the user's source, never re-printed from an AST.
   Every capture variant must compile with impellerc (`compile_test.dart`).
+- In the extension, only `devtools_ports.dart` may touch DevTools' globals
+  (`serviceManager`, `dtdManager`); everything else takes the ports, so it can
+  be tested with the fakes in `test/fakes.dart`. `package:devtools_extensions`
+  does not compile for the VM, so tests must not import that file.
 - `DebugShader` offers only the name-based uniform API: the probe adds its own
   uniforms, so values are replayed by name, never by float index. A hot
   reload zeroes uniforms, so replay happens on every read of `shader`.

@@ -218,9 +218,11 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 ## Known limitations
 
-- **DTD workspace roots:** file writes through DTD are allowed only inside
-  the IDE's workspace roots. Launching from VS Code or Android Studio works
-  best. A small CLI is the fallback.
+- **DTD workspace roots:** DTD reads and writes files only inside the IDE's
+  workspace roots. Launching from VS Code or Android Studio works best.
+  Without them, the page offers the probe to paste by hand.
+  `tool/devtools_session.py` sets up a session with the right roots without
+  an IDE.
 - **Derivatives in pixel mode:** every invocation computes the same
   coordinate, so `dFdx`, `dFdy` and `fwidth` are 0.
 - **Loops and repeated calls:** a value inside a loop, or in a function called
@@ -241,20 +243,33 @@ with Impeller (`tool/e2e_heatmap.py`).
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
-| M2 | Heatmap mode end to end | Runtime done and verified end to end. The extension side is next. |
+| M2 | Heatmap mode end to end | Built. Verified end to end through a real Dart Tooling Daemon and `flutter run`; the DevTools page itself still needs a check in a browser. |
 | M3 | Pixel inspector | Not started |
 | M4 | Auto sliders for uniforms (the analyzer already knows their names and types) | Not started |
 
-**Next, M2's extension side:**
-1. Read the `.frag` through DTD.
-2. Build the variable picker on `analyzeShader()`.
-3. Write the probe and call `performHotReload`.
-4. Call `showHeatmap`, with retries.
-5. Add range controls.
+**M2's extension side** (`packages/shader_debugger_devtools`):
+- `ShaderDebuggerController` runs the flow: find the app's package directory
+  (walking up from its main library to `pubspec.yaml`), read and analyze the
+  shader, pick a line and value, write the probe, hot reload, then
+  `showHeatmap` with retries. The range changes without a reload, and picking
+  another value while a heatmap is shown updates it.
+- When DTD may not write the probe (no workspace root covers it), the page
+  offers the probe to copy, then checks once the user has pasted it and hot
+  reloaded.
+- `ports.dart` abstracts the app and the files. `devtools_ports.dart` is the
+  only code that uses DevTools' globals, so the controller and the page are
+  tested with fakes. `test/live_test.dart` runs the controller against a real
+  session from `tool/devtools_session.py`.
+
+**Next:**
+- Check the page in a real DevTools in a browser.
+- Composite values: pick a matrix column, array element or struct field.
+- M3, the pixel inspector.
 
 ## Open questions
 
-- What is the fallback when DTD has no workspace roots?
+- Should a small CLI also write probes, for setups where DTD has no
+  workspace roots? Today the page offers the probe to paste by hand.
 
 ## References
 
