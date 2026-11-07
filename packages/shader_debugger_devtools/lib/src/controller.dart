@@ -38,9 +38,6 @@ enum HeatmapStatus {
 enum PixelStatus {
   off,
 
-  /// Waiting for a tap in the app.
-  picking,
-
   /// Loading the probe and reading the value.
   reading,
   shown,
@@ -184,7 +181,18 @@ class ShaderDebuggerController extends ChangeNotifier {
   PixelValue? get pixelValue => _pixelValue;
   PixelValue? _pixelValue;
 
+  /// Whether pixel select mode is on in the app: each click on the shader
+  /// there picks a pixel, whose value is then read.
+  bool get selectingPixel => _selectingPixel;
+  bool _selectingPixel = false;
+
+  /// Whether select mode's overlay takes the app's clicks. False when the
+  /// app has no Overlay; its clicks then also reach the app.
+  bool get selectTakesClicks => _selectTakesClicks;
+  bool _selectTakesClicks = true;
+
   StreamSubscription<PixelPick>? _picks;
+  StreamSubscription<void>? _selectExits;
 
   /// The probe the app has loaded, as far as the debugger knows, and the
   /// selection it captures. The heatmap and pixel reads share it.
@@ -217,8 +225,11 @@ class ShaderDebuggerController extends ChangeNotifier {
   /// Whether a heatmap can be requested now.
   bool get canShow => _canLoad && !isBusy;
 
-  /// Whether a pixel can be read or picked now.
+  /// Whether a pixel can be read now.
   bool get canReadPixel => _canLoad && _pixelStatus != PixelStatus.reading;
+
+  /// Whether select mode can be turned on now.
+  bool get canSelectPixel => _canLoad;
 
   bool get _canLoad =>
       _connection == AppConnection.ready &&
@@ -252,7 +263,15 @@ class ShaderDebuggerController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     app.hasRuntime.removeListener(_runtimeChanged);
-    unawaited(_picks?.cancel());
+    if (_selectingPixel) {
+      // Do not leave the app covered by the overlay.
+      unawaited(
+        app
+            .setPixelSelectMode(enabled: false)
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+    _stopSelecting();
     super.dispose();
   }
 
@@ -282,8 +301,11 @@ class ShaderDebuggerController extends ChangeNotifier {
       _connection = AppConnection.ready;
       _notify();
       final current = _asset;
-      if (current != null && info.shaders.contains(current)) return;
-      if (info.shaders.isNotEmpty) await selectShader(info.shaders.first);
+      if ((current == null || !info.shaders.contains(current)) &&
+          info.shaders.isNotEmpty) {
+        await selectShader(info.shaders.first);
+      }
+      await _resumePixelSelect(info.pixelSelectAsset);
     } on Object catch (error) {
       _fail('Could not reach the app: $error');
     }
@@ -511,54 +533,91 @@ class ShaderDebuggerController extends ChangeNotifier {
 
   // Pixel.
 
-  /// Has the app report the next tap on the shader, then reads the value
-  /// there. The tap also reaches the app.
-  Future<void> pickPixel() async {
-    final asset = _asset;
-    if (asset == null || _connection != AppConnection.ready) return;
-    final operation = ++_pixelOperation;
-    await _picks?.cancel();
-    _picks = app.pixelPicks.listen((pick) {
-      if (pick.asset != asset || operation != _pixelOperation) return;
-      unawaited(_picks?.cancel());
-      _picks = null;
-      if (!pick.hit) {
-        _setPixel(
-          PixelStatus.failed,
-          'That tap was not on $asset. Pick again, on the shader.',
-        );
-        return;
+  /// Turns pixel select mode on or off, like the widget inspector's select
+  /// mode: while on, an overlay in the app highlights the pixel under the
+  /// pointer, and each click picks it and reads its value here. It stays on
+  /// until turned off, here or with the Done button in the app.
+  Future<void> setPixelSelectMode(bool enabled) async {
+    if (enabled == _selectingPixel) return;
+    if (!enabled) {
+      _stopSelecting();
+      try {
+        await app.setPixelSelectMode(enabled: false);
+      } on Object {
+        // The app may be gone.
       }
-      _pixel = Offset(pick.x!, pick.y!);
-      _pixelInstance = pick.instance;
-      final width = pick.width;
-      final height = pick.height;
-      _pixelArea = width == null || height == null ? null : Size(width, height);
-      readPixel();
-    });
-    _setPixel(PixelStatus.picking, 'Click the shader in the app…');
+      return;
+    }
+    final asset = _asset;
+    if (asset == null || !canSelectPixel) return;
+    _listenForSelect(asset);
+    _selectingPixel = true;
+    _notify();
     try {
-      await app.pickPixel(asset);
+      _selectTakesClicks = await app.setPixelSelectMode(
+        enabled: true,
+        asset: asset,
+      );
+      _notify();
     } on Object catch (error) {
-      if (operation != _pixelOperation) return;
-      await _picks?.cancel();
-      _picks = null;
+      _stopSelecting();
       _setPixel(PixelStatus.failed, 'The app did not answer: $error');
     }
   }
 
-  /// Stops waiting for a tap.
-  Future<void> cancelPick() async {
-    if (_pixelStatus != PixelStatus.picking) return;
-    ++_pixelOperation;
-    await _picks?.cancel();
-    _picks = null;
-    _setPixel(_pixelValue == null ? PixelStatus.off : PixelStatus.shown, null);
-    try {
-      await app.cancelPick();
-    } on Object {
-      // The app may be gone.
+  /// After connecting: follows select mode if the app is still in it for
+  /// this shader, or turns it off.
+  Future<void> _resumePixelSelect(String? selecting) async {
+    if (selecting == null) {
+      _stopSelecting();
+    } else if (selecting == _asset) {
+      if (_selectingPixel) return;
+      _listenForSelect(selecting);
+      _selectingPixel = true;
+      _notify();
+    } else {
+      try {
+        await app.setPixelSelectMode(enabled: false);
+      } on Object {
+        // The app may be gone.
+      }
     }
+  }
+
+  void _listenForSelect(String asset) {
+    unawaited(_picks?.cancel());
+    unawaited(_selectExits?.cancel());
+    _picks = app.pixelPicks.listen((pick) => _picked(asset, pick));
+    _selectExits = app.pixelSelectModeExits.listen((_) => _stopSelecting());
+  }
+
+  void _stopSelecting() {
+    unawaited(_picks?.cancel());
+    unawaited(_selectExits?.cancel());
+    _picks = null;
+    _selectExits = null;
+    if (_selectingPixel) {
+      _selectingPixel = false;
+      _notify();
+    }
+  }
+
+  void _picked(String asset, PixelPick pick) {
+    if (pick.asset != asset || !_selectingPixel) return;
+    if (!pick.hit) {
+      // Keep the last value; say why nothing changed.
+      _setPixel(
+        _pixelValue == null ? PixelStatus.off : PixelStatus.shown,
+        'That click was not on $asset.',
+      );
+      return;
+    }
+    _pixel = Offset(pick.x!, pick.y!);
+    _pixelInstance = pick.instance;
+    final width = pick.width;
+    final height = pick.height;
+    _pixelArea = width == null || height == null ? null : Size(width, height);
+    readPixel();
   }
 
   /// Reads the value at ([x], [y]), typed in the shader's coordinates.
@@ -580,8 +639,6 @@ class ShaderDebuggerController extends ChangeNotifier {
       return;
     }
     final operation = ++_pixelOperation;
-    await _picks?.cancel();
-    _picks = null;
     _setPixel(
       PixelStatus.reading,
       _isLoaded(selection)
@@ -618,7 +675,7 @@ class ShaderDebuggerController extends ChangeNotifier {
   }
 
   Future<void> _forgetPixel() async {
-    if (_pixelStatus == PixelStatus.picking) await cancelPick();
+    if (_selectingPixel) await setPixelSelectMode(false);
     ++_pixelOperation;
     _pixel = null;
     _pixelArea = null;

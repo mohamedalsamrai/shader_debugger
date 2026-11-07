@@ -8,7 +8,7 @@ library;
 
 /// The version of the app ↔ extension protocol. Bump it when a service
 /// extension or a probe uniform changes meaning.
-const int protocolVersion = 2;
+const int protocolVersion = 3;
 
 /// Where the probe shader lives in the app, as an asset key. The app must
 /// register it under `flutter: shaders:` in its pubspec.
@@ -59,7 +59,8 @@ abstract final class ServiceExtensions {
   static const String prefix = 'ext.shader_debugger';
 
   /// Returns the protocol version, the probe asset, the assets of the live
-  /// `DebugShader`s and the current heatmap, if any.
+  /// `DebugShader`s, the current heatmap, if any, and the asset in pixel
+  /// select mode (`pixelSelectMode`), if any.
   static const String getInfo = '$prefix.getInfo';
 
   /// Draws the probe in place of every `DebugShader` for an asset.
@@ -84,22 +85,34 @@ abstract final class ServiceExtensions {
   /// finite come as the strings `NaN`, `Infinity` and `-Infinity`.
   static const String readPixel = '$prefix.readPixel';
 
-  /// Waits for the next tap in the app, then posts a
-  /// [ServiceEvents.pixelPicked] event with the shader coordinates under it.
+  /// Turns pixel select mode on or off, like the widget inspector's select
+  /// mode.
   ///
-  /// Parameters: `asset`. With `x` and `y` too, picks at that global logical
-  /// position right away and answers with the event's data, without
-  /// waiting for a tap.
-  static const String pickPixel = '$prefix.pickPixel';
+  /// Parameters: `enabled` (`true` or `false`), and `asset` when enabling.
+  /// While on, an overlay covers the app and takes its clicks and taps:
+  /// hovering a `DebugShader` for the asset highlights the pixel under the
+  /// pointer, and each click posts a [ServiceEvents.pixelPicked] event. It
+  /// stays on until turned off, here or with the overlay's Done button,
+  /// which posts [ServiceEvents.pixelSelectMode].
+  ///
+  /// Answers `{"enabled": bool, "overlay": bool}`. `overlay` is false when
+  /// the app has no `Overlay` to show it in (no `WidgetsApp` or `Navigator`);
+  /// clicks are then still reported, but also reach the app.
+  static const String setPixelSelectMode = '$prefix.setPixelSelectMode';
 
-  /// Stops waiting for a tap.
-  static const String cancelPick = '$prefix.cancelPick';
+  /// Picks the pixel at a global logical position right away, as a click in
+  /// select mode would, and answers with the [ServiceEvents.pixelPicked]
+  /// event's data instead of posting it. For tools and tests.
+  ///
+  /// Parameters: `asset`, `x` and `y`.
+  static const String pickPixel = '$prefix.pickPixel';
 }
 
 /// The events the runtime package posts on the VM service's Extension
 /// stream.
 abstract final class ServiceEvents {
-  /// A pixel was picked after [ServiceExtensions.pickPixel].
+  /// A pixel was clicked in select mode
+  /// ([ServiceExtensions.setPixelSelectMode]).
   ///
   /// Data: `asset`, and either `instance`, `x` and `y` (the shader
   /// coordinates of the device pixel tapped, at its center) with `width` and
@@ -107,4 +120,8 @@ abstract final class ServiceEvents {
   /// `reason`: `notOnShader` when the tap missed every `DebugShader` for the
   /// asset.
   static const String pixelPicked = 'shader_debugger.pixelPicked';
+
+  /// Select mode was turned off from the app, with the overlay's Done
+  /// button. Data: `enabled` (false).
+  static const String pixelSelectMode = 'shader_debugger.pixelSelectMode';
 }

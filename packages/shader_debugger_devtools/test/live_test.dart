@@ -202,20 +202,31 @@ class VmDebuggedApp implements DebuggedApp {
   );
 
   @override
-  Future<void> pickPixel(String asset) =>
-      _call(ServiceExtensions.pickPixel, {'asset': asset});
+  Future<bool> setPixelSelectMode({
+    required bool enabled,
+    String? asset,
+  }) async {
+    final json = await _call(ServiceExtensions.setPixelSelectMode, {
+      'enabled': '$enabled',
+      'asset': ?asset,
+    });
+    return json['overlay'] == true;
+  }
 
-  @override
-  Future<void> cancelPick() => _call(ServiceExtensions.cancelPick);
-
-  @override
-  Stream<PixelPick> get pixelPicks => service.onExtensionEvent
-      .where((event) => event.extensionKind == ServiceEvents.pixelPicked)
+  Stream<Map<String, Object?>> _events(String kind) => service.onExtensionEvent
+      .where((event) => event.extensionKind == kind)
       .map(
-        (event) => PixelPick.fromJson(
-          Map<String, Object?>.from(event.extensionData?.data ?? const {}),
-        ),
+        (event) =>
+            Map<String, Object?>.from(event.extensionData?.data ?? const {}),
       );
+
+  @override
+  Stream<PixelPick> get pixelPicks =>
+      _events(ServiceEvents.pixelPicked).map(PixelPick.fromJson);
+
+  @override
+  Stream<void> get pixelSelectModeExits =>
+      _events(ServiceEvents.pixelSelectMode);
 
   @override
   Future<void> hotReload() async {

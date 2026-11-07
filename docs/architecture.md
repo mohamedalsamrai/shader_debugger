@@ -42,13 +42,15 @@ Running app (debug mode, package:shader_debugger)
   images as clones it keeps alive. While a heatmap is shown for its asset, its
   `shader` getter returns the probe, with the recorded uniforms replayed on it.
   It also remembers which render boxes painted with it
-  (`RenderObject.debugActivePaint`), so a tap can be mapped to its
+  (`RenderObject.debugActivePaint`), so a click can be mapped to its
   coordinates.
 - **`ShaderDebugger`** loads the probe program, checks the probe's version
   stamp, and answers the extension through service extensions:
   `ext.shader_debugger.getInfo`, `showHeatmap`, `hideHeatmap`, `readPixel`,
-  `pickPixel` and `cancelPick`. A picked pixel comes back as a
-  `shader_debugger.pixelPicked` event on the Extension stream.
+  `setPixelSelectMode` and `pickPixel`. Clicks in select mode come back as
+  `shader_debugger.pixelPicked` events on the Extension stream.
+- **Pixel select mode** (`pixel_select.dart`) is an overlay, inserted into the
+  app's root `Overlay`, modeled on the widget inspector's select mode.
 
 ## How a heatmap gets on screen
 
@@ -71,19 +73,34 @@ developer's own hot reloads do not fail on the broken one.
 
 ## How a pixel gets read
 
-1. **Pick:** `pickPixel(asset)` arms a global pointer route. On the next tap,
-   the app finds the topmost render box that painted a `DebugShader` for the
-   asset, moves the tap to the center of its device pixel, and converts it to
-   the box's local coordinates: what `FlutterFragCoord()` returns there. It
-   posts them, with the instance and the box's size, as a
-   `shader_debugger.pixelPicked` event. The tap also reaches the app.
-   Coordinates can also be typed in the page.
+1. **Select:** like the widget inspector's Select Widget Mode. The page's
+   toggle calls `setPixelSelectMode(enabled, asset)`, and the app inserts an
+   overlay entry on top of its root `Overlay` (no setup in the app):
+   - It takes every click, tap, drag and scroll, so none reach the app.
+   - Hovering a `DebugShader` for the asset outlines the area it painted,
+     draws a crosshair on the device pixel under the pointer, and labels it
+     with its shader coordinates. The last pixel clicked stays marked.
+   - Each click maps to the topmost render box that painted the shader,
+     moves to the center of its device pixel, and converts to the box's
+     local coordinates: what `FlutterFragCoord()` returns there. They are
+     posted, with the instance and the box's size, as a
+     `shader_debugger.pixelPicked` event.
+   - It stays on until the toggle turns it off, or the overlay's Done
+     button does (posting `shader_debugger.pixelSelectMode`, so the page's
+     toggle follows). Closing the page turns it off too.
+   - The overlay hides itself from the debugger's own hit test, which goes
+     on to the app beneath. An app without an `Overlay` gets no overlay:
+     clicks are then watched through a global pointer route, and also reach
+     it.
+
+   Coordinates can also be typed in the page; `pickPixel(asset, x, y)` picks
+   at a global position directly, for tools and tests.
 2. **Read:** with the probe loaded (as for a heatmap), `readPixel(asset,
    stamp, x, y, instance)` draws the probe into one pixel with
    `Picture.toImageSync(1, 1, targetFormat: TargetPixelFormat.rgbaFloat32)`
    and reads it back with `ImageByteFormat.rawExtendedRgba128`. The probe
    pins `FlutterFragCoord()` to (x, y), and the uniforms are those of the
-   instance under the tap.
+   instance clicked.
 3. **Two passes:** pixel modes write an alpha of 1, so that alpha never scales
    the color: `_dbg_mode` 1 writes x, y and z, and 2 writes w.
 
@@ -272,10 +289,10 @@ with Impeller (`tool/e2e_heatmap.py`).
   later.
 - **Pixel readback:** the probe is drawn with `BlendMode.src` and an alpha of
   1, so blending and premultiplied alpha do not alter the raw values.
-- **Picking a pixel:** the tap is mapped through the render box that painted
-  the shader. A painter that transforms the canvas before drawing (scale,
-  rotate, translate) is not accounted for; type the coordinates instead.
-  The tap also reaches the app's own widgets.
+- **Selecting a pixel:** the click is mapped through the render box that
+  painted the shader. A painter that transforms the canvas before drawing
+  (scale, rotate, translate) is not accounted for; type the coordinates
+  instead. In an app without an `Overlay`, clicks also reach its widgets.
 - **Backend-specific code:** the analyzer assumes `IMPELLER_GRAPHICS_BACKEND`.
   Code in `#ifdef` branches for other backends is not listed.
 - **`main` with a separate prototype:** the instrumenter renames only the
@@ -290,7 +307,7 @@ with Impeller (`tool/e2e_heatmap.py`).
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
 | M2 | Heatmap mode end to end | Built. Verified end to end through a real Dart Tooling Daemon and `flutter run`; the DevTools page itself still needs a check in a browser. |
-| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. The page still needs a check in a browser. |
+| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. Select mode (the overlay) is covered by widget tests; its e2e checks have not run yet, and the page still needs a check in a browser. |
 | M4 | Auto sliders for uniforms (the analyzer already knows their names and types) | Not started |
 
 **M2's extension side** (`packages/shader_debugger_devtools`):
@@ -305,8 +322,9 @@ with Impeller (`tool/e2e_heatmap.py`).
 - When DTD may not write the probe (no workspace root covers it), the page
   offers the probe to copy, then checks once the user has pasted it and hot
   reloaded.
-- M3: the Pixel section reads the selected value at typed coordinates, or at
-  a pixel picked in the app, and shows each component with nine significant
+- M3: the Pixel section reads the selected value at pixels clicked in select
+  mode (a toggle, like the inspector's Select Widget Mode), or at typed
+  coordinates, and shows each component with nine significant
   digits (ints and bools as such). Picking another value, part or line
   re-reads it at the same pixel.
 - `ports.dart` abstracts the app and the files. `devtools_ports.dart` is the

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui' show Offset, Size;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -361,44 +360,66 @@ void main() {
       expect(app.reloads, 1);
     });
 
-    test('picks a pixel in the app, then reads it there', () async {
-      unawaited(controller.pickPixel());
-      await pumpEventQueue();
-      expect(controller.pixelStatus, PixelStatus.picking);
-      expect(app.picking, gradientAsset);
-      app.tap(
-        const PixelPick(
-          asset: gradientAsset,
-          instance: 3,
-          x: 20.25,
-          y: 10.75,
-          width: 400,
-          height: 300,
-        ),
-      );
+    PixelPick at(double x, double y, {int instance = 3}) => PixelPick(
+      asset: gradientAsset,
+      instance: instance,
+      x: x,
+      y: y,
+      width: 400,
+      height: 300,
+    );
+
+    test('select mode reads every pixel clicked in the app', () async {
+      await controller.setPixelSelectMode(true);
+      expect(controller.selectingPixel, isTrue);
+      expect(controller.selectTakesClicks, isTrue);
+      expect(app.selecting, gradientAsset);
+
+      app.click(at(20.25, 10.75));
       await pumpEventQueue();
       expect(controller.pixelStatus, PixelStatus.shown);
       expect(controller.pixel, const Offset(20.25, 10.75));
       expect(controller.pixelArea, const Size(400, 300));
       expect(app.pixelCalls.single.instance, 3);
       expect(controller.pixelValue?.components.first, 0.2025);
+
+      // It stays on: the next click reads again.
+      app.click(at(50, 70, instance: 4));
+      await pumpEventQueue();
+      expect(controller.pixelValue?.components.first, 0.5);
+      expect(app.pixelCalls.last.instance, 4);
+      expect(controller.selectingPixel, isTrue);
+      expect(app.reloads, 1);
     });
 
-    test('a tap off the shader is reported', () async {
-      unawaited(controller.pickPixel());
+    test('a click off the shader keeps the last value', () async {
+      await controller.setPixelSelectMode(true);
+      app.click(at(20.25, 10.75));
       await pumpEventQueue();
-      app.tap(const PixelPick(asset: gradientAsset, reason: 'notOnShader'));
+      app.click(const PixelPick(asset: gradientAsset, reason: 'notOnShader'));
       await pumpEventQueue();
-      expect(controller.pixelStatus, PixelStatus.failed);
+      expect(controller.pixelStatus, PixelStatus.shown);
+      expect(controller.pixelValue?.coord, const Offset(20.25, 10.75));
       expect(controller.pixelMessage, contains('not on $gradientAsset'));
     });
 
-    test('picking can be cancelled', () async {
-      unawaited(controller.pickPixel());
+    test('select mode turns off from here or from the app', () async {
+      await controller.setPixelSelectMode(true);
+      await controller.setPixelSelectMode(false);
+      expect(controller.selectingPixel, isFalse);
+      expect(app.selecting, isNull);
+
+      await controller.setPixelSelectMode(true);
+      app.pressDone();
       await pumpEventQueue();
-      await controller.cancelPick();
-      expect(controller.pixelStatus, PixelStatus.off);
-      expect(app.picking, isNull);
+      expect(controller.selectingPixel, isFalse);
+    });
+
+    test('says when the app has no overlay to take the clicks', () async {
+      app.hasOverlay = false;
+      await controller.setPixelSelectMode(true);
+      expect(controller.selectingPixel, isTrue);
+      expect(controller.selectTakesClicks, isFalse);
     });
 
     test('picking another value reads it at the same pixel', () async {
@@ -421,13 +442,48 @@ void main() {
       expect(controller.pixelMessage, contains('No DebugShader'));
     });
 
-    test('another shader starts without a pixel', () async {
+    test('another shader starts without a pixel or select mode', () async {
       await controller.setPixel(1, 2);
+      await controller.setPixelSelectMode(true);
       await controller.selectShader(gradientAsset);
       expect(controller.pixel, isNull);
       expect(controller.pixelValue, isNull);
       expect(controller.pixelStatus, PixelStatus.off);
+      expect(controller.selectingPixel, isFalse);
+      expect(app.selecting, isNull);
     });
+  });
+
+  test('follows select mode the app is still in after reconnecting', () async {
+    app.info = AppInfo(
+      protocolVersion: protocolVersion,
+      probeAsset: probeAsset,
+      shaders: const [gradientAsset],
+      pixelSelectAsset: gradientAsset,
+    );
+    app.selecting = gradientAsset;
+    await connect();
+    expect(controller.selectingPixel, isTrue);
+    controller.selectLine(lineOf('float d ='));
+    app.click(const PixelPick(asset: gradientAsset, x: 10, y: 20, instance: 1));
+    await pumpEventQueue();
+    expect(controller.pixelValue?.components.first, 0.1);
+  });
+
+  test('closing the debugger takes the overlay off the app', () async {
+    final other = ShaderDebuggerController(
+      app: app,
+      workspace: workspace,
+      retryDelay: Duration.zero,
+    )..start();
+    app.runtime.value = true;
+    await pumpEventQueue();
+    other.selectLine(lineOf('float d ='));
+    await other.setPixelSelectMode(true);
+    expect(app.selecting, gradientAsset);
+    other.dispose();
+    await pumpEventQueue();
+    expect(app.selecting, isNull);
   });
 
   test('pixel values that JSON cannot carry arrive as strings', () {

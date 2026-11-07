@@ -13,6 +13,7 @@ final class AppInfo {
     required this.protocolVersion,
     required this.probeAsset,
     required this.shaders,
+    this.pixelSelectAsset,
   });
 
   factory AppInfo.fromJson(Map<String, Object?> json) => AppInfo(
@@ -22,6 +23,7 @@ final class AppInfo {
       for (final shader in json['shaders'] as List<Object?>? ?? const [])
         if (shader is String) shader,
     ],
+    pixelSelectAsset: json['pixelSelectMode'] as String?,
   );
 
   final int protocolVersion;
@@ -31,6 +33,9 @@ final class AppInfo {
 
   /// Asset keys of the shaders the app draws through `DebugShader`.
   final List<String> shaders;
+
+  /// The asset in pixel select mode, if it is on.
+  final String? pixelSelectAsset;
 }
 
 /// The app's answer to `ext.shader_debugger.showHeatmap`, and the part of
@@ -70,8 +75,8 @@ final class PixelAnswer extends ProbeAnswer {
   final List<double>? value;
 }
 
-/// A pixel picked in the app: from a `shader_debugger.pixelPicked` event, or
-/// `pickPixel` with a position.
+/// A pixel clicked in the app in select mode: a `shader_debugger.pixelPicked`
+/// event.
 @immutable
 final class PixelPick {
   const PixelPick({
@@ -144,14 +149,16 @@ abstract interface class DebuggedApp {
     int? instance,
   });
 
-  /// Has the app report the next tap on [pixelPicks].
-  Future<void> pickPixel(String asset);
+  /// Turns pixel select mode on for [asset], or off: while on, the app
+  /// reports each click on [pixelPicks]. Returns whether an overlay takes
+  /// the clicks; without one, they also reach the app.
+  Future<bool> setPixelSelectMode({required bool enabled, String? asset});
 
-  /// Stops waiting for a tap.
-  Future<void> cancelPick();
-
-  /// Pixels picked in the app after [pickPixel].
+  /// Pixels clicked in the app in select mode.
   Stream<PixelPick> get pixelPicks;
+
+  /// Select mode turned off from the app, with its Done button.
+  Stream<void> get pixelSelectModeExits;
 
   /// Hot reloads the app. Throws if the reload fails, for example because the
   /// probe does not compile.

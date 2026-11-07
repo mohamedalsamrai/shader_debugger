@@ -123,7 +123,7 @@ void main() {
     expect(find.textContaining('Showing spin[1] (vec2, rg)'), findsOneWidget);
   });
 
-  testWidgets('reads a pixel picked in the app, or typed', (tester) async {
+  testWidgets('reads pixels clicked in select mode, or typed', (tester) async {
     app.runtime.value = true;
     // Tall enough for the pixel section under the heatmap's.
     await pumpScreen(tester, height: 1300);
@@ -131,10 +131,11 @@ void main() {
     await tester.tap(find.text('  float d = length(uv - 0.5);'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Pick in app'));
+    await tester.tap(find.text('Select pixel mode'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Click the shader in the app'), findsOneWidget);
-    app.tap(
+    expect(app.selecting, gradientAsset);
+    expect(find.textContaining('Clicks go to the debugger'), findsOneWidget);
+    app.click(
       const PixelPick(
         asset: gradientAsset,
         instance: 1,
@@ -155,6 +156,12 @@ void main() {
     );
     expect(find.text('0.2025'), findsOneWidget);
     expect(find.widgetWithText(TextField, '20.25'), findsOneWidget);
+
+    // Pressed again, it turns select mode off.
+    await tester.tap(find.text('Select pixel mode'));
+    await tester.pumpAndSettle();
+    expect(app.selecting, isNull);
+    expect(find.textContaining('Clicks go to the debugger'), findsNothing);
 
     await tester.enterText(find.widgetWithText(TextField, 'X'), '1');
     await tester.enterText(find.widgetWithText(TextField, 'Y'), '2');

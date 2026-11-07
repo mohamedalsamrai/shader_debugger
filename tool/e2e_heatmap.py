@@ -169,6 +169,20 @@ try:
         stale = extension('readPixel', asset=ASSET, stamp=1, x=pick['x'], y=pick['y'])
         check('readPixel checks the stamp', stale.get('reason') == 'probeNotLoaded', stale)
 
+    # Select mode, like the widget inspector's: an overlay takes the clicks,
+    # and picking still sees the shader under it.
+    mode = extension('setPixelSelectMode', enabled='true', asset=ASSET)
+    check('select mode shows its overlay', mode == {'enabled': True, 'overlay': True}, mode)
+    time.sleep(0.5)
+    screenshot('2_select_mode.png')
+    selecting = extension('getInfo').get('pixelSelectMode')
+    check('getInfo reports select mode', selecting == ASSET, selecting)
+    under = extension('pickPixel', asset=ASSET, x=100.3, y=80.7)
+    check('picking sees the shader under the overlay', under == pick, under)
+    mode = extension('setPixelSelectMode', enabled='false')
+    selecting = extension('getInfo').get('pixelSelectMode')
+    check('select mode turns off', mode.get('enabled') is False and selecting is None, mode)
+
     broken = golden.replace('_dbg_stamp_1', '_dbg_stamp_3').replace('length(', 'lenth(')
     reload = hot_reload_with(broken)
     check('a probe that does not compile fails the reload', reload.get('code') != 0, reload)

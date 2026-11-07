@@ -70,25 +70,36 @@ final class DevToolsDebuggedApp implements DebuggedApp {
   );
 
   @override
-  Future<void> pickPixel(String asset) =>
-      _call(ServiceExtensions.pickPixel, {'asset': asset});
-
-  @override
-  Future<void> cancelPick() => _call(ServiceExtensions.cancelPick);
+  Future<bool> setPixelSelectMode({
+    required bool enabled,
+    String? asset,
+  }) async {
+    final json = await _call(ServiceExtensions.setPixelSelectMode, {
+      'enabled': '$enabled',
+      'asset': ?asset,
+    });
+    return json['overlay'] == true;
+  }
 
   /// DevTools' service manager already listens to the Extension stream.
-  @override
-  Stream<PixelPick> get pixelPicks {
+  Stream<Map<String, Object?>> _events(String kind) {
     final service = serviceManager.service;
     if (service == null) return const Stream.empty();
     return service.onExtensionEvent
-        .where((event) => event.extensionKind == ServiceEvents.pixelPicked)
+        .where((event) => event.extensionKind == kind)
         .map(
-          (event) => PixelPick.fromJson(
-            Map<String, Object?>.from(event.extensionData?.data ?? const {}),
-          ),
+          (event) =>
+              Map<String, Object?>.from(event.extensionData?.data ?? const {}),
         );
   }
+
+  @override
+  Stream<PixelPick> get pixelPicks =>
+      _events(ServiceEvents.pixelPicked).map(PixelPick.fromJson);
+
+  @override
+  Stream<void> get pixelSelectModeExits =>
+      _events(ServiceEvents.pixelSelectMode);
 
   @override
   Future<void> hotReload() => serviceManager.performHotReload();

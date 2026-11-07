@@ -36,6 +36,9 @@ To pick a pixel by clicking it in the app, draw the shader without
 transforming the canvas first: the click is mapped into the painting render
 box's coordinates. Otherwise, type the coordinates in DevTools.
 
+Select mode needs nothing else from the app: its overlay goes into the app's
+root `Overlay`, which `MaterialApp`, `CupertinoApp` and `WidgetsApp` provide.
+
 ## How it works
 
 - `DebugShader` records the uniforms it is given. While a heatmap is shown for
@@ -43,7 +46,11 @@ box's coordinates. Otherwise, type the coordinates in DevTools.
   it by name.
 - `ShaderDebugger` loads the probe, checks its version stamp, and answers the
   DevTools extension through `ext.shader_debugger.getInfo`, `showHeatmap`,
-  `hideHeatmap`, `readPixel`, `pickPixel` and `cancelPick`.
+  `hideHeatmap`, `readPixel`, `setPixelSelectMode` and `pickPixel`.
+- Pixel select mode works like the widget inspector's select mode: an
+  overlay takes the app's clicks, highlights the pixel under the pointer,
+  and reports each click to DevTools, until it is turned off there or with
+  its Done button.
 - `readPixel` draws the probe offscreen into one 32-bit float pixel, with the
   app's uniforms and `FlutterFragCoord()` pinned to the point, and reads the
   value back exactly (on Impeller).

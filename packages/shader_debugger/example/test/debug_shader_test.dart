@@ -6,8 +6,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_debugger/shader_debugger.dart';
 
@@ -112,7 +113,7 @@ void main() {
         'ext.shader_debugger.getInfo',
         {},
       );
-      expect(info['protocolVersion'], 2);
+      expect(info['protocolVersion'], 3);
       expect(info['probeAsset'], goldenProbe);
       expect(info['shaders'], [gradient]);
       expect(info['heatmap'], {
@@ -253,102 +254,242 @@ void main() {
   });
 
   group('picking a pixel', () {
-    // The gradient is painted 4x4 at (10, 20), at 2 device pixels per
-    // logical pixel; a second instance with another uSize at (30, 20).
-    const origin = Offset(10, 20);
+    // A 400x300 logical screen at 2 device pixels per logical pixel. The
+    // gradient is painted 4x4 at (10, 200), and a second instance with
+    // another uSize at (30, 200).
+    const top = 200.0;
     late DebugShader second;
-    final events = <Map<Object?, Object?>>[];
+    final events = <List<Object?>>[];
+    var appTaps = 0;
 
     setUp(() async {
       second = await DebugShader.fromAsset(gradient);
       second.getUniformVec2('uSize').set(8, 8);
       events.clear();
-      debugger.postEvent = (kind, data) {
-        expect(kind, 'shader_debugger.pixelPicked');
-        events.add(data);
-      };
+      appTaps = 0;
+      debugger.postEvent = (kind, data) => events.add([kind, data]);
     });
 
     tearDown(() {
-      debugger.cancelPick();
+      debugger.setPixelSelectMode(enabled: false);
       second.dispose();
     });
 
-    Future<void> pumpShaders(WidgetTester tester) async {
+    // The counter wraps everything, so every tap that reaches the app counts.
+    Widget shaders() => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => appTaps++,
+      child: Stack(
+        children: [
+          for (final (left, debugShader) in [(10.0, shader), (30.0, second)])
+            Positioned(
+              left: left,
+              top: top,
+              width: size.toDouble(),
+              height: size.toDouble(),
+              child: CustomPaint(painter: _ShaderPainter(debugShader)),
+            ),
+        ],
+      ),
+    );
+
+    /// Pumps the shaders in a MaterialApp, or with [overlay] false, in a
+    /// bare tree without an Overlay.
+    Future<void> pumpShaders(WidgetTester tester, {bool overlay = true}) async {
       tester.view
-        ..physicalSize = const Size(200, 100)
+        ..physicalSize = const Size(800, 600)
         ..devicePixelRatio = 2;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Stack(
-            children: [
-              for (final (left, debugShader) in [
-                (10.0, shader),
-                (30.0, second),
-              ])
-                Positioned(
-                  left: left,
-                  top: origin.dy,
-                  width: size.toDouble(),
-                  height: size.toDouble(),
-                  child: CustomPaint(painter: _ShaderPainter(debugShader)),
-                ),
-            ],
-          ),
-        ),
+        overlay
+            ? MaterialApp(home: shaders())
+            : Directionality(
+                textDirection: TextDirection.ltr,
+                child: shaders(),
+              ),
       );
     }
+
+    Map<Object?, Object?> picked(double x, double y, DebugShader on) => {
+      'asset': gradient,
+      'instance': on.debugId,
+      'x': x,
+      'y': y,
+      'width': 4.0,
+      'height': 4.0,
+    };
 
     testWidgets('maps a position to the device pixel center in the shader', (
       tester,
     ) async {
       await pumpShaders(tester);
       // 12.3 * 2 = 24.6 -> device pixel 24, center 24.5 -> 12.25 -> 2.25.
-      expect(debugger.pickAt(gradient, const Offset(12.3, 21.7)), {
-        'asset': gradient,
-        'instance': shader.debugId,
-        'x': 2.25,
-        'y': 1.75,
-        'width': 4.0,
-        'height': 4.0,
-      });
       expect(
-        debugger.pickAt(gradient, const Offset(31, 21))['instance'],
+        debugger.pickAt(gradient, const Offset(12.3, top + 1.7)),
+        picked(2.25, 1.75, shader),
+      );
+      expect(
+        debugger.pickAt(gradient, const Offset(31, top + 1))['instance'],
         second.debugId,
       );
-      expect(debugger.pickAt(gradient, const Offset(20, 21)), {
+      expect(debugger.pickAt(gradient, const Offset(20, top + 1)), {
         'asset': gradient,
         'reason': 'notOnShader',
       });
     });
 
-    testWidgets('waits for one tap, and reports it as an event', (
+    testWidgets('select mode takes the clicks: each one picks a pixel', (
       tester,
     ) async {
       await pumpShaders(tester);
-      debugger.pickPixel(gradient);
-      await tester.tapAt(const Offset(12.3, 21.7));
+      expect(
+        debugger.setPixelSelectMode(enabled: true, asset: gradient),
+        isTrue,
+      );
+      await tester.pump();
+      expect(
+        find.text('Shader Debugger: click a pixel of $gradient'),
+        findsOneWidget,
+      );
+
+      await tester.tapAt(const Offset(12.3, top + 1.7));
+      await tester.tapAt(const Offset(31.2, top + 3.3));
+      await tester.tapAt(const Offset(100, 100));
       expect(events, [
-        {
-          'asset': gradient,
-          'instance': shader.debugId,
-          'x': 2.25,
-          'y': 1.75,
-          'width': 4.0,
-          'height': 4.0,
-        },
+        ['shader_debugger.pixelPicked', picked(2.25, 1.75, shader)],
+        ['shader_debugger.pixelPicked', picked(1.25, 3.25, second)],
+        [
+          'shader_debugger.pixelPicked',
+          {'asset': gradient, 'reason': 'notOnShader'},
+        ],
       ]);
-      await tester.tapAt(const Offset(31, 21));
-      expect(events, hasLength(1), reason: 'only the first tap is picked');
+      expect(appTaps, 0, reason: 'clicks go to the debugger, not the app');
+      expect(debugger.pixelSelectAsset, gradient);
+    });
+
+    testWidgets('hovering frames the pixel under the pointer', (tester) async {
+      await pumpShaders(tester);
+      debugger.setPixelSelectMode(enabled: true, asset: gradient);
+      await tester.pump();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(12.3, top + 1.7));
+      await tester.pump();
+
+      final layer = find.byWidgetPredicate(
+        (widget) =>
+            widget is CustomPaint &&
+            widget.painter.runtimeType.toString() == '_PixelSelectPainter',
+      );
+      expect(
+        tester.renderObject(layer),
+        paints
+          // The shader's area, then the frame around the device pixel.
+          ..rect(rect: const Rect.fromLTRB(10.5, top + 0.5, 13.5, top + 3.5))
+          ..rect(
+            rect: Rect.fromCenter(
+              center: const Offset(12.25, top + 1.75),
+              width: 9,
+              height: 9,
+            ),
+          ),
+      );
+      expect(events, isEmpty, reason: 'hovering picks nothing');
+    });
+
+    testWidgets("the overlay's Done button leaves select mode", (tester) async {
+      await pumpShaders(tester);
+      debugger.setPixelSelectMode(enabled: true, asset: gradient);
+      await tester.pump();
+      await tester.tap(find.text('Done'));
+      await tester.pump();
+      expect(events, [
+        [
+          'shader_debugger.pixelSelectMode',
+          {'enabled': false},
+        ],
+      ]);
+      expect(debugger.pixelSelectAsset, isNull);
+      expect(find.text('Done'), findsNothing);
+      await tester.tapAt(const Offset(12.3, top + 1.7));
+      expect(appTaps, 1);
+    });
+
+    testWidgets('without an Overlay, clicks are watched and reach the app', (
+      tester,
+    ) async {
+      await pumpShaders(tester, overlay: false);
+      expect(
+        debugger.setPixelSelectMode(enabled: true, asset: gradient),
+        isFalse,
+      );
+      await tester.tapAt(const Offset(12.3, top + 1.7));
+      expect(events.single, [
+        'shader_debugger.pixelPicked',
+        picked(2.25, 1.75, shader),
+      ]);
+      expect(appTaps, 1);
+
+      debugger.setPixelSelectMode(enabled: false);
+      await tester.tapAt(const Offset(12.3, top + 1.7));
+      expect(events, hasLength(1));
+    });
+
+    testWidgets('the service extensions', (tester) async {
+      await pumpShaders(tester);
+      Future<Map<String, Object?>> call(
+        String name,
+        Map<String, String> parameters,
+      ) => debugger.handleServiceExtension(
+        'ext.shader_debugger.$name',
+        parameters,
+      );
+
+      expect(
+        await call('setPixelSelectMode', {
+          'enabled': 'true',
+          'asset': gradient,
+        }),
+        {'enabled': true, 'overlay': true},
+      );
+      // pickPixel waits for a pending frame, which only a pump draws here.
+      await tester.pump();
+      expect((await call('getInfo', {}))['pixelSelectMode'], gradient);
+      expect(
+        await call('pickPixel', {
+          'asset': gradient,
+          'x': '12.3',
+          'y': '${top + 1.7}',
+        }),
+        picked(2.25, 1.75, shader),
+      );
+      expect(await call('setPixelSelectMode', {'enabled': 'false'}), {
+        'enabled': false,
+        'overlay': false,
+      });
+      expect((await call('getInfo', {}))['pixelSelectMode'], isNull);
+
+      for (final bad in [
+        {'enabled': 'yes', 'asset': gradient},
+        {'enabled': 'true'},
+      ]) {
+        await expectLater(
+          call('setPixelSelectMode', bad),
+          throwsFormatException,
+        );
+      }
+      await expectLater(
+        call('pickPixel', {'asset': gradient}),
+        throwsFormatException,
+      );
     });
 
     testWidgets('the picked value is the one drawn there', (tester) async {
-      await pumpShaders(tester);
+      await pumpShaders(tester, overlay: false);
       await tester.runAsync(show);
       await tester.pump();
-      const position = Offset(13.3, 22.8);
+      const position = Offset(13.3, top + 2.8);
       final pick = debugger.pickAt(gradient, position);
       final reading = (await tester.runAsync(
         () => debugger.readPixel(

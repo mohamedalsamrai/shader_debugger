@@ -6,9 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart'
+    show Element, OverlayEntry, OverlayState, StatefulElement, WidgetsBinding;
 import 'package:shader_debugger_core/protocol.dart';
 
 import 'debug_shader.dart';
+import 'pixel_select.dart';
 
 /// The heatmap being shown: which shader, which probe, and the value range.
 @immutable
@@ -58,6 +61,42 @@ enum ProbeRejection {
   probeNotLoaded,
 }
 
+/// A pixel of a [DebugShader] on screen, found by
+/// [ShaderDebugger.pixelTargetAt].
+@internal
+final class PixelTarget {
+  const PixelTarget({
+    required this.shader,
+    required this.box,
+    required this.coord,
+    required this.center,
+    required this.bounds,
+  });
+
+  final DebugShader shader;
+
+  /// The render box that painted [shader] there.
+  final RenderBox box;
+
+  /// The shader coordinates: what `FlutterFragCoord()` returns at [center].
+  final Offset coord;
+
+  /// The center of the device pixel, as a global logical position.
+  final Offset center;
+
+  /// Where [box] is, in global logical coordinates.
+  final Rect bounds;
+
+  Map<String, Object?> toJson() => {
+    'asset': shader.asset,
+    'instance': shader.debugId,
+    'x': coord.dx,
+    'y': coord.dy,
+    'width': box.size.width,
+    'height': box.size.height,
+  };
+}
+
 /// The value [ShaderDebugger.readPixel] read, or why it could not.
 typedef PixelReading = ({List<double>? value, ProbeRejection? rejection});
 
@@ -78,8 +117,20 @@ final class ShaderDebugger {
   String? _probeProgramAsset;
   bool _extensionsRegistered = false;
 
-  /// The asset a tap is awaited for, after [pickPixel].
-  String? _pickAsset;
+  /// The asset whose pixels are being selected, while select mode is on.
+  String? _selectAsset;
+
+  /// The select mode overlay, or null when select mode is off or the app
+  /// has no Overlay.
+  OverlayEntry? _selectEntry;
+
+  /// Whether select mode watches pointers instead, without an overlay.
+  bool _watchingPointers = false;
+
+  /// Set while [pixelTargetAt] hit tests, so the select mode overlay lets the
+  /// test through to the app below it.
+  @internal
+  bool hitTestingForPixel = false;
 
   /// Posts events on the Extension stream; replaceable in tests.
   @visibleForTesting
@@ -178,38 +229,88 @@ final class ShaderDebugger {
     }
   }
 
-  /// Waits for the next tap in the app, then posts a
-  /// [ServiceEvents.pixelPicked] event with what [pickAt] finds there. The
-  /// tap still reaches the app.
-  void pickPixel(String asset) {
-    if (!kDebugMode) return;
-    if (_pickAsset == null) {
-      GestureBinding.instance.pointerRouter.addGlobalRoute(_pointer);
+  /// The asset whose pixels are being selected, while select mode is on.
+  String? get pixelSelectAsset => _selectAsset;
+
+  /// Turns pixel select mode on for [asset], or off.
+  ///
+  /// Like the widget inspector's select mode: an overlay covers the app and
+  /// takes its clicks and taps, hovering highlights the pixel under the
+  /// pointer, and each click posts a [ServiceEvents.pixelPicked] event. It
+  /// stays on until turned off. Returns whether the overlay is shown; without
+  /// an `Overlay` in the app (no `WidgetsApp` or `Navigator`), clicks are
+  /// watched instead, and also reach the app.
+  bool setPixelSelectMode({required bool enabled, String? asset}) {
+    if (!kDebugMode) return false;
+    if (!enabled) {
+      _endPixelSelect();
+      return false;
     }
-    _pickAsset = asset;
+    if (asset == null) throw ArgumentError.notNull('asset');
+    _selectAsset = asset;
+    if (_selectEntry case final entry?) {
+      entry.markNeedsBuild();
+      return true;
+    }
+    if (_watchingPointers) return false;
+    if (_rootOverlay() case final overlay?) {
+      final entry = OverlayEntry(
+        builder: (context) => PixelSelectLayer(debugger: this),
+      );
+      _selectEntry = entry;
+      overlay.insert(entry);
+      return true;
+    }
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_pointer);
+    _watchingPointers = true;
+    return false;
   }
 
-  /// Stops waiting for a tap.
-  void cancelPick() {
-    if (_pickAsset == null) return;
-    _pickAsset = null;
-    GestureBinding.instance.pointerRouter.removeGlobalRoute(_pointer);
+  /// Leaves select mode from the app, with the overlay's Done button, and
+  /// tells DevTools.
+  @internal
+  void leavePixelSelectMode() {
+    _endPixelSelect();
+    postEvent(ServiceEvents.pixelSelectMode, {'enabled': false});
+  }
+
+  /// A click in select mode: posts what is under [position] as a
+  /// [ServiceEvents.pixelPicked] event, and returns it.
+  @internal
+  PixelTarget? selectPixel(Offset position, {int? viewId}) {
+    final asset = _selectAsset;
+    if (asset == null) return null;
+    final target = pixelTargetAt(asset, position, viewId: viewId);
+    postEvent(
+      ServiceEvents.pixelPicked,
+      target?.toJson() ?? {'asset': asset, 'reason': 'notOnShader'},
+    );
+    return target;
   }
 
   /// The shader coordinates under [position], a global logical position, as
   /// [ServiceEvents.pixelPicked] reports them.
+  Map<String, Object?> pickAt(String asset, Offset position, {int? viewId}) =>
+      pixelTargetAt(asset, position, viewId: viewId)?.toJson() ??
+      {'asset': asset, 'reason': 'notOnShader'};
+
+  /// The pixel of a [DebugShader] for [asset] under [position], a global
+  /// logical position, or null.
   ///
-  /// The tap goes to the topmost render box that painted a [DebugShader] for
-  /// [asset], and is moved to the center of the device pixel it falls in.
-  /// The coordinates are that box's local ones, which is what
-  /// `FlutterFragCoord()` returns unless the painter transformed the canvas.
-  Map<String, Object?> pickAt(String asset, Offset position, {int? viewId}) {
+  /// The position goes to the topmost render box that painted a
+  /// [DebugShader] for [asset], and is moved to the center of the device
+  /// pixel it falls in. The coordinates are that box's local ones, which is
+  /// what `FlutterFragCoord()` returns unless the painter transformed the
+  /// canvas.
+  @internal
+  PixelTarget? pixelTargetAt(String asset, Offset position, {int? viewId}) {
     final owners = <RenderBox, DebugShader>{};
     for (final shader in shaders.where((shader) => shader.asset == asset)) {
       for (final box in shader.painters) {
         owners.putIfAbsent(box, () => shader);
       }
     }
+    if (owners.isEmpty) return null;
     final views = RendererBinding.instance.renderViews;
     final view =
         views.where((view) => view.flutterView.viewId == viewId).firstOrNull ??
@@ -217,6 +318,7 @@ final class ShaderDebugger {
     RenderBox? box;
     if (view != null) {
       final result = HitTestResult();
+      hitTestingForPixel = true;
       try {
         RendererBinding.instance.hitTestInView(
           result,
@@ -225,6 +327,8 @@ final class ShaderDebugger {
         );
       } on AssertionError {
         // Part of the tree awaits layout; fall back to the bounds below.
+      } finally {
+        hitTestingForPixel = false;
       }
       box = result.path
           .map((entry) => entry.target)
@@ -236,31 +340,59 @@ final class ShaderDebugger {
     box ??= owners.keys
         .where((box) => box.size.contains(box.globalToLocal(position)))
         .firstOrNull;
-    if (box == null) return {'asset': asset, 'reason': 'notOnShader'};
+    if (box == null) return null;
     final ratio = view?.flutterView.devicePixelRatio ?? 1.0;
-    double center(double logical) =>
+    double centered(double logical) =>
         ((logical * ratio).floorToDouble() + 0.5) / ratio;
-    final local = box.globalToLocal(
-      Offset(center(position.dx), center(position.dy)),
+    final center = Offset(centered(position.dx), centered(position.dy));
+    return PixelTarget(
+      shader: owners[box]!,
+      box: box,
+      coord: box.globalToLocal(center),
+      center: center,
+      bounds: MatrixUtils.transformRect(
+        box.getTransformTo(null),
+        Offset.zero & box.size,
+      ),
     );
-    return {
-      'asset': asset,
-      'instance': owners[box]!.debugId,
-      'x': local.dx,
-      'y': local.dy,
-      'width': box.size.width,
-      'height': box.size.height,
-    };
   }
 
+  void _endPixelSelect() {
+    _selectAsset = null;
+    final entry = _selectEntry;
+    _selectEntry = null;
+    if (entry != null) {
+      entry
+        ..remove()
+        ..dispose();
+    }
+    if (_watchingPointers) {
+      _watchingPointers = false;
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_pointer);
+    }
+  }
+
+  /// Select mode without an overlay: clicks are watched, not taken.
   void _pointer(PointerEvent event) {
-    final asset = _pickAsset;
-    if (event is! PointerDownEvent || asset == null) return;
-    cancelPick();
-    postEvent(
-      ServiceEvents.pixelPicked,
-      pickAt(asset, event.position, viewId: event.viewId),
-    );
+    if (event is PointerDownEvent) {
+      selectPixel(event.position, viewId: event.viewId);
+    }
+  }
+
+  /// The app's outermost Overlay: the root Navigator's, in a `WidgetsApp`.
+  static OverlayState? _rootOverlay() {
+    OverlayState? found;
+    void visit(Element element) {
+      if (found != null) return;
+      if (element case StatefulElement(:final OverlayState state)) {
+        found = state;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return found;
   }
 
   static Future<void> _endOfPendingFrame() async {
@@ -315,6 +447,7 @@ final class ShaderDebugger {
           'probeAsset': probeAsset,
           'shaders': shaders.map((shader) => shader.asset).toSet().toList(),
           'heatmap': _heatmap?.toJson(),
+          'pixelSelectMode': _selectAsset,
         };
       case ServiceExtensions.showHeatmap:
         final asset = parameters['asset'];
@@ -363,28 +496,35 @@ final class ShaderDebugger {
               component.isFinite ? component : '$component',
           ],
         };
+      case ServiceExtensions.setPixelSelectMode:
+        final enabled = switch (parameters['enabled']) {
+          'true' => true,
+          'false' => false,
+          _ => throw const FormatException(
+            'setPixelSelectMode needs "enabled": true or false.',
+          ),
+        };
+        final asset = parameters['asset'];
+        if (enabled && asset == null) {
+          throw const FormatException(
+            'setPixelSelectMode needs "asset" to turn it on.',
+          );
+        }
+        final overlay = setPixelSelectMode(enabled: enabled, asset: asset);
+        return {'enabled': enabled, 'overlay': overlay};
       case ServiceExtensions.pickPixel:
         final asset = parameters['asset'];
         if (asset == null) {
-          throw const FormatException('pickPixel needs "asset".');
+          throw const FormatException('pickPixel needs "asset", "x" and "y".');
         }
-        if (parameters.containsKey('x') || parameters.containsKey('y')) {
-          // Unlike a tap, this can come right after a heatmap change marked
-          // the tree for layout; hit testing needs it laid out.
-          await _endOfPendingFrame();
-          return pickAt(
-            asset,
-            Offset(
-              _parseDouble(parameters, 'x', null),
-              _parseDouble(parameters, 'y', null),
-            ),
-          );
-        }
-        pickPixel(asset);
-        return {'armed': true};
-      case ServiceExtensions.cancelPick:
-        cancelPick();
-        return {'applied': true};
+        final position = Offset(
+          _parseDouble(parameters, 'x', null),
+          _parseDouble(parameters, 'y', null),
+        );
+        // Unlike a click, this can come right after a heatmap change marked
+        // the tree for layout; hit testing needs it laid out.
+        await _endOfPendingFrame();
+        return pickAt(asset, position);
     }
     throw FormatException('Unknown method: $method');
   }
@@ -455,8 +595,8 @@ final class ShaderDebugger {
       ServiceExtensions.showHeatmap,
       ServiceExtensions.hideHeatmap,
       ServiceExtensions.readPixel,
+      ServiceExtensions.setPixelSelectMode,
       ServiceExtensions.pickPixel,
-      ServiceExtensions.cancelPick,
     ]) {
       developer.registerExtension(method, (method, parameters) async {
         try {

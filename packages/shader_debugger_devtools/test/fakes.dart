@@ -126,15 +126,23 @@ class FakeApp implements DebuggedApp {
   final pixelCalls =
       <({String asset, int stamp, double x, double y, int? instance})>[];
 
-  /// The asset a tap is awaited for, after pickPixel.
-  String? picking;
-  final _picks = StreamController<PixelPick>.broadcast();
+  /// The asset in pixel select mode, while it is on.
+  String? selecting;
 
-  /// A tap in the app: reported if a pick is armed.
-  void tap(PixelPick pick) {
-    if (picking == null) return;
-    picking = null;
-    _picks.add(pick);
+  /// Whether select mode shows an overlay that takes the clicks.
+  bool hasOverlay = true;
+  final _picks = StreamController<PixelPick>.broadcast();
+  final _exits = StreamController<void>.broadcast();
+
+  /// A click in the app: reported while select mode is on.
+  void click(PixelPick pick) {
+    if (selecting != null) _picks.add(pick);
+  }
+
+  /// The overlay's Done button.
+  void pressDone() {
+    selecting = null;
+    _exits.add(null);
   }
 
   ProbeAnswer _answer(int stamp) {
@@ -207,13 +215,19 @@ class FakeApp implements DebuggedApp {
   }
 
   @override
-  Future<void> pickPixel(String asset) async => picking = asset;
-
-  @override
-  Future<void> cancelPick() async => picking = null;
+  Future<bool> setPixelSelectMode({
+    required bool enabled,
+    String? asset,
+  }) async {
+    selecting = enabled ? asset : null;
+    return enabled && hasOverlay;
+  }
 
   @override
   Stream<PixelPick> get pixelPicks => _picks.stream;
+
+  @override
+  Stream<void> get pixelSelectModeExits => _exits.stream;
 
   @override
   Future<Uri?> rootLibrary() async => mainLibrary;

@@ -670,7 +670,7 @@ class _PixelPanelState extends State<_PixelPanel> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     final theme = Theme.of(context);
-    final picking = controller.pixelStatus == PixelStatus.picking;
+    final selecting = controller.selectingPixel;
     Widget field(String label, TextEditingController text) => Expanded(
       child: TextField(
         controller: text,
@@ -687,8 +687,40 @@ class _PixelPanelState extends State<_PixelPanel> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Pixel', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Tooltip(
+          message:
+              'Like the inspector\'s Select Widget Mode: hover the shader in '
+              'the app to see a pixel, click to read its value here.',
+          child: selecting
+              ? FilledButton.icon(
+                  icon: const Icon(Icons.ads_click, size: 18),
+                  label: const Text('Select pixel mode'),
+                  onPressed: () => controller.setPixelSelectMode(false),
+                )
+              : OutlinedButton.icon(
+                  icon: const Icon(Icons.ads_click, size: 18),
+                  label: const Text('Select pixel mode'),
+                  onPressed: controller.canSelectPixel
+                      ? () => controller.setPixelSelectMode(true)
+                      : null,
+                ),
+        ),
+        if (selecting) ...[
+          const SizedBox(height: 4),
+          Text(
+            controller.selectTakesClicks
+                ? 'Hover the shader in the app and click a pixel. Clicks go '
+                      'to the debugger, not the app. Press Done in the app, '
+                      'or the button above, to stop.'
+                : 'Click a pixel of the shader in the app. This app has no '
+                      'Overlay to cover it, so the clicks also reach it.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+        const SizedBox(height: 12),
         Text(
-          'Coordinates are what FlutterFragCoord() returns there.',
+          'Or type coordinates: what FlutterFragCoord() returns there.',
           style: theme.textTheme.bodySmall,
         ),
         Row(
@@ -705,26 +737,7 @@ class _PixelPanelState extends State<_PixelPanel> {
           ],
         ),
         if (_error case final error?) _Error(error),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              icon: const Icon(Icons.ads_click, size: 18),
-              label: const Text('Pick in app'),
-              onPressed: controller.canReadPixel && !picking
-                  ? controller.pickPixel
-                  : null,
-            ),
-            if (picking)
-              TextButton(
-                onPressed: controller.cancelPick,
-                child: const Text('Cancel'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _PixelResult(controller: controller),
       ],
     );
@@ -742,9 +755,7 @@ class _PixelResult extends StatelessWidget {
     final message = controller.pixelMessage ?? '';
     switch (controller.pixelStatus) {
       case PixelStatus.off:
-        return const SizedBox();
-      case PixelStatus.picking:
-        return Text('$message The click also reaches the app.');
+        return message.isEmpty ? const SizedBox() : Text(message);
       case PixelStatus.reading:
         return _Progress(message);
       case PixelStatus.failed:
@@ -792,6 +803,10 @@ class _PixelResult extends StatelessWidget {
                   ),
                 ],
               ),
+            if (message.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(message, style: theme.textTheme.bodySmall),
+            ],
           ],
         );
     }
