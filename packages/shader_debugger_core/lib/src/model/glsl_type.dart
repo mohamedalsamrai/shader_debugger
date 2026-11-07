@@ -57,7 +57,7 @@ enum SelectorKind {
   column,
 
   /// An array element, chosen with an [IndexSelector] (`a[2]`).
-  index,
+  element,
 
   /// A struct field, chosen with a [FieldSelector] (`light.color`).
   field,
@@ -369,7 +369,7 @@ final class ArrayType extends GlslType {
   }
 
   @override
-  SelectorKind get selectorKind => SelectorKind.index;
+  SelectorKind get selectorKind => SelectorKind.element;
 
   /// Picks an element. When [length] is unknown, every index is accepted.
   @override
