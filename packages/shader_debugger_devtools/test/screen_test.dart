@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shader_debugger_core/protocol.dart';
 import 'package:shader_debugger_devtools/src/controller.dart';
 import 'package:shader_debugger_devtools/src/ports.dart';
 import 'package:shader_debugger_devtools/src/screen.dart';
@@ -69,7 +70,7 @@ void main() {
     tester,
   ) async {
     app.runtime.value = true;
-    await pumpScreen(tester);
+    await pumpScreen(tester, height: 1100);
     await tester.pumpAndSettle();
     await tester.tap(find.text('  vec2 uv = FlutterFragCoord().xy / uSize;'));
     await tester.pumpAndSettle();
@@ -122,6 +123,47 @@ void main() {
     expect(find.textContaining('Showing spin[1] (vec2, rg)'), findsOneWidget);
   });
 
+  testWidgets('reads a pixel picked in the app, or typed', (tester) async {
+    app.runtime.value = true;
+    // Tall enough for the pixel section under the heatmap's.
+    await pumpScreen(tester, height: 1300);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('  float d = length(uv - 0.5);'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pick in app'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Click the shader in the app'), findsOneWidget);
+    app.tap(
+      const PixelPick(
+        asset: gradientAsset,
+        instance: 1,
+        x: 20.25,
+        y: 10.75,
+        width: 400,
+        height: 300,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('d · float'), findsOneWidget);
+    expect(
+      find.text(
+        'at (20.25, 10.75) of 400.0 × 300.0, after line '
+        '${lineOf('float d =') + 1}',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('0.2025'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '20.25'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'X'), '1');
+    await tester.enterText(find.widgetWithText(TextField, 'Y'), '2');
+    await tester.tap(find.text('Read'));
+    await tester.pumpAndSettle();
+    expect(find.text('0.01'), findsOneWidget);
+    expect(app.reloads, 1);
+  });
+
   testWidgets('a failed connection can be retried', (tester) async {
     app.info = const AppInfo(
       protocolVersion: 99,
@@ -134,7 +176,7 @@ void main() {
     expect(find.text('Cannot connect to the app'), findsOneWidget);
 
     app.info = const AppInfo(
-      protocolVersion: 1,
+      protocolVersion: protocolVersion,
       probeAsset: probeAsset,
       shaders: [gradientAsset],
     );

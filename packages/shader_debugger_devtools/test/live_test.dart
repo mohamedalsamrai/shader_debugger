@@ -163,7 +163,7 @@ class VmDebuggedApp implements DebuggedApp {
       AppInfo.fromJson(await _call(ServiceExtensions.getInfo));
 
   @override
-  Future<HeatmapAnswer> showHeatmap({
+  Future<ProbeAnswer> showHeatmap({
     required String asset,
     required int stamp,
     required double min,
@@ -175,7 +175,7 @@ class VmDebuggedApp implements DebuggedApp {
       'min': '$min',
       'max': '$max',
     });
-    return HeatmapAnswer(
+    return ProbeAnswer(
       applied: json['applied'] == true,
       reason: json['reason'] as String?,
     );
@@ -183,6 +183,39 @@ class VmDebuggedApp implements DebuggedApp {
 
   @override
   Future<void> hideHeatmap() => _call(ServiceExtensions.hideHeatmap);
+
+  @override
+  Future<PixelAnswer> readPixel({
+    required String asset,
+    required int stamp,
+    required double x,
+    required double y,
+    int? instance,
+  }) async => PixelAnswer.fromJson(
+    await _call(ServiceExtensions.readPixel, {
+      'asset': asset,
+      'stamp': '$stamp',
+      'x': '$x',
+      'y': '$y',
+      if (instance != null) 'instance': '$instance',
+    }),
+  );
+
+  @override
+  Future<void> pickPixel(String asset) =>
+      _call(ServiceExtensions.pickPixel, {'asset': asset});
+
+  @override
+  Future<void> cancelPick() => _call(ServiceExtensions.cancelPick);
+
+  @override
+  Stream<PixelPick> get pixelPicks => service.onExtensionEvent
+      .where((event) => event.extensionKind == ServiceEvents.pixelPicked)
+      .map(
+        (event) => PixelPick.fromJson(
+          Map<String, Object?>.from(event.extensionData?.data ?? const {}),
+        ),
+      );
 
   @override
   Future<void> hotReload() async {

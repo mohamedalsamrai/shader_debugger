@@ -2,7 +2,10 @@
 /// package, and an in-memory workspace.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:shader_debugger_core/protocol.dart';
 import 'package:shader_debugger_devtools/src/ports.dart';
 
 const gradientAsset = 'shaders/gradient.frag';
@@ -94,7 +97,7 @@ class FakeApp implements DebuggedApp {
   final FakeWorkspace workspace;
   final runtime = ValueNotifier(false);
   var info = const AppInfo(
-    protocolVersion: 1,
+    protocolVersion: protocolVersion,
     probeAsset: probeAsset,
     shaders: [gradientAsset],
   );
@@ -113,6 +116,41 @@ class FakeApp implements DebuggedApp {
   final heatmapCalls = <({String asset, int stamp, double min, double max})>[];
   ({String asset, int stamp, double min, double max})? shown;
 
+  /// What readPixel answers at a point, once the probe is loaded.
+  List<double> Function(double x, double y) pixelValue = (x, y) => [
+    x / 100,
+    y / 100,
+    0,
+    1,
+  ];
+  final pixelCalls =
+      <({String asset, int stamp, double x, double y, int? instance})>[];
+
+  /// The asset a tap is awaited for, after pickPixel.
+  String? picking;
+  final _picks = StreamController<PixelPick>.broadcast();
+
+  /// A tap in the app: reported if a pick is armed.
+  void tap(PixelPick pick) {
+    if (picking == null) return;
+    picking = null;
+    _picks.add(pick);
+  }
+
+  ProbeAnswer _answer(int stamp) {
+    if (refuseWith != null) {
+      return ProbeAnswer(applied: false, reason: refuseWith);
+    }
+    if (slowAsks > 0) {
+      slowAsks--;
+      return const ProbeAnswer(applied: false, reason: 'probeNotLoaded');
+    }
+    if (stamp != loadedStamp) {
+      return const ProbeAnswer(applied: false, reason: 'probeNotLoaded');
+    }
+    return const ProbeAnswer(applied: true);
+  }
+
   @override
   ValueListenable<bool> get hasRuntime => runtime;
 
@@ -129,7 +167,7 @@ class FakeApp implements DebuggedApp {
   }
 
   @override
-  Future<HeatmapAnswer> showHeatmap({
+  Future<ProbeAnswer> showHeatmap({
     required String asset,
     required int stamp,
     required double min,
@@ -137,22 +175,45 @@ class FakeApp implements DebuggedApp {
   }) async {
     final call = (asset: asset, stamp: stamp, min: min, max: max);
     heatmapCalls.add(call);
-    if (refuseWith != null) {
-      return HeatmapAnswer(applied: false, reason: refuseWith);
-    }
-    if (slowAsks > 0) {
-      slowAsks--;
-      return const HeatmapAnswer(applied: false, reason: 'probeNotLoaded');
-    }
-    if (stamp != loadedStamp) {
-      return const HeatmapAnswer(applied: false, reason: 'probeNotLoaded');
-    }
-    shown = call;
-    return const HeatmapAnswer(applied: true);
+    final answer = _answer(stamp);
+    if (answer.applied) shown = call;
+    return answer;
   }
 
   @override
   Future<void> hideHeatmap() async => shown = null;
+
+  @override
+  Future<PixelAnswer> readPixel({
+    required String asset,
+    required int stamp,
+    required double x,
+    required double y,
+    int? instance,
+  }) async {
+    pixelCalls.add((
+      asset: asset,
+      stamp: stamp,
+      x: x,
+      y: y,
+      instance: instance,
+    ));
+    final answer = _answer(stamp);
+    return PixelAnswer(
+      applied: answer.applied,
+      reason: answer.reason,
+      value: answer.applied ? pixelValue(x, y) : null,
+    );
+  }
+
+  @override
+  Future<void> pickPixel(String asset) async => picking = asset;
+
+  @override
+  Future<void> cancelPick() async => picking = null;
+
+  @override
+  Stream<PixelPick> get pixelPicks => _picks.stream;
 
   @override
   Future<Uri?> rootLibrary() async => mainLibrary;

@@ -311,12 +311,12 @@ class _SidePanel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _Status(controller: controller),
-        const Divider(height: 32),
-        _PixelPanel(controller: controller),
         if (controller.manualProbe case final probe?) ...[
           const SizedBox(height: 12),
           _ManualProbe(controller: controller, probe: probe),
         ],
+        const Divider(height: 32),
+        _PixelPanel(controller: controller),
         if (controller.analysis?.diagnostics case final diagnostics?
             when diagnostics.isNotEmpty) ...[
           const SizedBox(height: 16),

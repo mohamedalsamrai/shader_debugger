@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show Offset, Size;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_debugger_core/shader_debugger_core.dart';
 import 'package:shader_debugger_devtools/src/controller.dart';
@@ -300,5 +303,151 @@ void main() {
       expect(controller.shownProbe?.request.expression, 'lights[1].color');
       expect(app.reloads, 2);
     });
+  });
+
+  group('loading probes', () {
+    setUp(() async {
+      await connect();
+      controller.selectLine(lineOf('float d ='));
+    });
+
+    test('a probe the app has is not written again', () async {
+      await controller.showHeatmap();
+      await controller.hideHeatmap();
+      await controller.showHeatmap();
+      expect(app.reloads, 1);
+      expect(controller.status, HeatmapStatus.shown);
+    });
+
+    test('a failed hot reload puts back the probe the app still has', () async {
+      app.failReload = true;
+      await controller.showHeatmap();
+      expect(workspace.files[probeFile], '// placeholder\n');
+
+      app.failReload = false;
+      await controller.showHeatmap();
+      final loaded = workspace.files[probeFile];
+      app.failReload = true;
+      controller.selectLine(lineOf('vec3 col ='));
+      await controller.showHeatmap();
+      expect(controller.status, HeatmapStatus.failed);
+      expect(workspace.files[probeFile], loaded);
+    });
+  });
+
+  group('reading a pixel', () {
+    setUp(() async {
+      await connect();
+      controller.selectLine(lineOf('float d ='));
+    });
+
+    test('reads the value at typed coordinates', () async {
+      await controller.setPixel(12.5, 40);
+      expect(controller.pixelStatus, PixelStatus.shown);
+      final value = controller.pixelValue!;
+      expect(value.components, [0.125, 0.4, 0, 1]);
+      expect(value.coord, const Offset(12.5, 40));
+      expect(value.probe.request.expression, 'd');
+      expect(app.reloads, 1);
+      expect(app.pixelCalls.single.instance, isNull);
+    });
+
+    test('shares the loaded probe with the heatmap', () async {
+      await Future.wait([controller.showHeatmap(), controller.setPixel(1, 2)]);
+      expect(app.reloads, 1);
+      expect(controller.status, HeatmapStatus.shown);
+      expect(controller.pixelStatus, PixelStatus.shown);
+      await controller.setPixel(3, 4);
+      expect(app.reloads, 1);
+    });
+
+    test('picks a pixel in the app, then reads it there', () async {
+      unawaited(controller.pickPixel());
+      await pumpEventQueue();
+      expect(controller.pixelStatus, PixelStatus.picking);
+      expect(app.picking, gradientAsset);
+      app.tap(
+        const PixelPick(
+          asset: gradientAsset,
+          instance: 3,
+          x: 20.25,
+          y: 10.75,
+          width: 400,
+          height: 300,
+        ),
+      );
+      await pumpEventQueue();
+      expect(controller.pixelStatus, PixelStatus.shown);
+      expect(controller.pixel, const Offset(20.25, 10.75));
+      expect(controller.pixelArea, const Size(400, 300));
+      expect(app.pixelCalls.single.instance, 3);
+      expect(controller.pixelValue?.components.first, 0.2025);
+    });
+
+    test('a tap off the shader is reported', () async {
+      unawaited(controller.pickPixel());
+      await pumpEventQueue();
+      app.tap(const PixelPick(asset: gradientAsset, reason: 'notOnShader'));
+      await pumpEventQueue();
+      expect(controller.pixelStatus, PixelStatus.failed);
+      expect(controller.pixelMessage, contains('not on $gradientAsset'));
+    });
+
+    test('picking can be cancelled', () async {
+      unawaited(controller.pickPixel());
+      await pumpEventQueue();
+      await controller.cancelPick();
+      expect(controller.pixelStatus, PixelStatus.off);
+      expect(app.picking, isNull);
+    });
+
+    test('picking another value reads it at the same pixel', () async {
+      await controller.setPixel(1, 2);
+      controller.selectLine(lineOf('vec3 col ='));
+      await pumpEventQueue();
+      expect(controller.pixelValue?.probe.request.expression, 'col');
+      expect(controller.pixelValue?.coord, const Offset(1, 2));
+      expect(app.reloads, 2);
+    });
+
+    test('waits for the probe to land, and reports refusals', () async {
+      app.slowAsks = 2;
+      await controller.setPixel(1, 2);
+      expect(controller.pixelStatus, PixelStatus.shown);
+      expect(app.pixelCalls, hasLength(3));
+      app.refuseWith = 'noShaderForAsset';
+      await controller.setPixel(1, 2);
+      expect(controller.pixelStatus, PixelStatus.failed);
+      expect(controller.pixelMessage, contains('No DebugShader'));
+    });
+
+    test('another shader starts without a pixel', () async {
+      await controller.setPixel(1, 2);
+      await controller.selectShader(gradientAsset);
+      expect(controller.pixel, isNull);
+      expect(controller.pixelValue, isNull);
+      expect(controller.pixelStatus, PixelStatus.off);
+    });
+  });
+
+  test('pixel values that JSON cannot carry arrive as strings', () {
+    final answer = PixelAnswer.fromJson({
+      'applied': true,
+      'value': [0.5, 'NaN', 'Infinity', '-Infinity'],
+    });
+    expect(answer.value?[0], 0.5);
+    expect(answer.value?[1], isNaN);
+    expect(answer.value?.sublist(2), [
+      double.infinity,
+      double.negativeInfinity,
+    ]);
+    expect(
+      PixelAnswer.fromJson({
+        'applied': false,
+        'reason': 'x',
+        'value': <Object>[],
+      }).value,
+      isNull,
+    );
   });
 }
