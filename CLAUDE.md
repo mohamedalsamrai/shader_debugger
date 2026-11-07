@@ -13,12 +13,12 @@ This is a pub workspace. Run `flutter pub get` once at the root; every package
 resolves against the root `pubspec.lock`.
 
 - `packages/shader_debugger_core/`: pure Dart. `lib/src/model/` is the data
-  model (GLSL types, symbol table, per-statement facts);
-  `lib/src/instrument/` generates probes from it. `lib/protocol.dart` holds the
-  names shared with the runtime (probe uniforms, service extensions) and has
-  no dependencies. The preprocessor, parser and resolver go next to these. No
-  `dart:io`, `dart:ui` or Flutter imports in `lib/`, because it is compiled
-  into the web extension.
+  model (GLSL types, symbol table, per-statement facts). `lib/src/parse/` is
+  lexer → preprocessor → parser → resolver, behind `analyzeShader()` in
+  `lib/src/analyze.dart`. `lib/src/instrument/` generates probes.
+  `lib/protocol.dart` holds the names shared with the runtime (probe uniforms,
+  service extensions) and has no dependencies. No `dart:io`, `dart:ui` or
+  Flutter imports in `lib/`, because it is compiled into the web extension.
 - `packages/shader_debugger/`: the Flutter runtime, debug only. `DebugShader`
   records uniforms and swaps in the probe; `ShaderDebugger` owns the probe
   program and the `ext.shader_debugger.*` service extensions.
@@ -74,8 +74,14 @@ OUT="$(mktemp -d)"
 - The parser is not a validator; impellerc is. For a construct it does not
   understand, set `StatementInfo.unsupportedReason` and add a `Diagnostic`.
   Never fail the whole file.
-- `test/support/fixtures.dart` in core is the contract for the resolver: the
-  hand-built analyses there are what parsing the same sources must produce.
+- `test/support/fixtures.dart` in core is the contract for the resolver:
+  `contract_test.dart` checks that parsing the same sources reproduces those
+  hand-built analyses exactly. Change both together.
+- `corpus_test.dart` analyzes real shaders (the example's, and the Flutter
+  SDK's own, read from the installed SDK) and compiles a probe at every
+  statement. Add shaders there when the analyzer learns a new construct.
+- Tokens keep offsets in the original file (a macro's output gets the macro
+  use's offsets, included code the `#include`'s); that is the source map.
 - Probes are edited copies of the user's source, never re-printed from an AST.
   Every capture variant must compile with impellerc (`compile_test.dart`).
 - `DebugShader` offers only the name-based uniform API: the probe adds its own

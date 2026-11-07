@@ -15,3 +15,6 @@ coverage/
 packages/shader_debugger/extension/devtools/build/
 # Widget Preview related
 .widget_preview/
+
+# Private design notes. CLAUDE.md imports this file locally.
+docs/design.md
