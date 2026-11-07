@@ -13,9 +13,10 @@ import '../support/impellerc.dart';
 void main() {
   final sdk = flutterRoot?.path;
   final shaders = {
-    'example: gradient.frag': File(
-      '../shader_debugger/example/shaders/gradient.frag',
-    ),
+    for (final name in ['gradient', 'lights', 'checkerboard', 'ripple'])
+      'example: $name.frag': File(
+        '../shader_debugger/example/shaders/$name.frag',
+      ),
     'Flutter SDK: ink_sparkle.frag': File(
       '$sdk/packages/flutter/lib/src/material/shaders/ink_sparkle.frag',
     ),

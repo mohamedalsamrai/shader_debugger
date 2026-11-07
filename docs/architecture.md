@@ -334,8 +334,9 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 **Next:**
 - Check the page in a real DevTools in a browser, including the composite
-  picker and the Pixel section. No example shader uses composites yet; a
-  second one in the example app would show them off.
+  picker and the Pixel section. The example app's gallery has a shader for
+  each: `lights.frag` (structs in an array), `checkerboard.frag` (a matrix,
+  an `ivec2`, a `bool`) and `ripple.frag` (`out` parameters, a sampler).
 - M4, sliders for uniforms.
 
 ## Open questions

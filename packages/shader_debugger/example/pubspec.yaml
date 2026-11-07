@@ -23,7 +23,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   shaders:
+    # The gallery. gradient.frag is the example the docs use.
     - shaders/gradient.frag
+    - shaders/lights.frag
+    - shaders/checkerboard.frag
+    - shaders/ripple.frag
     # The DevTools extension overwrites this file with an instrumented copy of
     # the shader being debugged, then hot reloads. It has to be registered
     # here once so the Flutter tool compiles it and swaps it in on reload.

@@ -129,7 +129,9 @@ try:
     time.sleep(2)
 
     info = extension('getInfo')
-    check('getInfo lists the example shader', info.get('shaders') == [ASSET] and info.get('heatmap') is None, info)
+    shaders = info.get('shaders') or []
+    check('getInfo lists the gallery, gradient.frag first',
+          shaders[:1] == [ASSET] and len(shaders) == 4 and info.get('heatmap') is None, info)
     result = extension('showHeatmap', asset=ASSET, stamp=1)
     check('the placeholder probe has no stamp', result.get('reason') == 'probeNotLoaded', result)
     screenshot('0_original.png')
@@ -148,10 +150,24 @@ try:
     heatmap = extension('getInfo').get('heatmap') or {}
     check('getInfo reports the heatmap', heatmap.get('stamp') == 2, heatmap)
 
-    # Pixel inspector: pick a point the way a tap does, then read d there.
-    pick = extension('pickPixel', asset=ASSET, x=100.3, y=80.7)
+    # Pixel inspector: find a point on the gradient's card the way a click
+    # would, then read d there.
+    position = pick = None
+    for y in range(20, 1200, 40):
+        for x in range(20, 1200, 40):
+            found = extension('pickPixel', asset=ASSET, x=x + 0.3, y=y + 0.7)
+            if 'instance' in found:
+                position, pick = (x + 0.3, y + 0.7), found
+                break
+        if pick:
+            break
+    pick = pick or {}
     check('pickPixel maps a position into the shader',
-          'instance' in pick and abs(pick['x'] - 100.3) <= 0.5 and abs(pick['y'] - 80.7) <= 0.5, pick)
+          'instance' in pick and 0 <= pick['x'] <= pick['width'] and 0 <= pick['y'] <= pick['height'], pick)
+    if position:
+        moved = extension('pickPixel', asset=ASSET, x=position[0] + 10, y=position[1])
+        check('a move of 10 on screen is a move of 10 in the shader',
+              moved.get('x', 0) - pick['x'] == 10 and moved.get('y') == pick['y'], moved)
     miss = extension('pickPixel', asset=ASSET, x=-5, y=-5)
     check('a position off the shader is reported', miss.get('reason') == 'notOnShader', miss)
     if 'instance' in pick:
@@ -177,8 +193,9 @@ try:
     screenshot('2_select_mode.png')
     selecting = extension('getInfo').get('pixelSelectMode')
     check('getInfo reports select mode', selecting == ASSET, selecting)
-    under = extension('pickPixel', asset=ASSET, x=100.3, y=80.7)
-    check('picking sees the shader under the overlay', under == pick, under)
+    if position:
+        under = extension('pickPixel', asset=ASSET, x=position[0], y=position[1])
+        check('picking sees the shader under the overlay', under == pick, under)
     mode = extension('setPixelSelectMode', enabled='false')
     selecting = extension('getInfo').get('pixelSelectMode')
     check('select mode turns off', mode.get('enabled') is False and selecting is None, mode)

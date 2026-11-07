@@ -30,7 +30,12 @@ resolves against the root `pubspec.lock`.
   `extension/devtools/` holds `config.yaml` and the compiled extension in
   `build/` (git-ignored, kept for publishing by `.pubignore`).
 - `packages/shader_debugger/example/`: demo app and the runtime's tests.
-  `shaders/gradient.frag` is the example shader the docs use;
+  `shaders/` holds the gallery: `gradient.frag` is the example shader the
+  docs use, and `lights.frag`, `checkerboard.frag` and `ripple.frag` cover
+  composites, matrices, ints and bools, `out` parameters and samplers
+  (`corpus_test.dart` analyzes them all). gradient.frag must stay the first
+  `DebugShader` the app creates: DevTools opens the first one, and the
+  live and e2e tests expect it;
   `shaders/_debug/probe.frag` is the placeholder probe the extension
   overwrites; commit only the placeholder (the example's README says how to
   hide the extension's writes from `git status`).
