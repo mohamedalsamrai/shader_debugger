@@ -1,83 +1,56 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
+import 'package:shader_debugger/shader_debugger.dart';
 
-/// Draws `shaders/gradient.frag` full screen.
+/// Draws `shaders/gradient.frag` full screen through a [DebugShader].
 ///
-/// Run it in debug mode, open DevTools and look for the shader_debugger tab.
-/// The app depends on package:shader_debugger, which is what makes DevTools
-/// offer the extension.
+/// Run it in debug mode, open DevTools and find the shader_debugger tab.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final program = await ui.FragmentProgram.fromAsset('shaders/gradient.frag');
-  runApp(ExampleApp(program: program));
+  final shader = await DebugShader.fromAsset('shaders/gradient.frag');
+  runApp(ExampleApp(shader: shader));
 }
 
 class ExampleApp extends StatelessWidget {
-  const ExampleApp({super.key, required this.program});
+  const ExampleApp({super.key, required this.shader});
 
-  final ui.FragmentProgram program;
+  final DebugShader shader;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Shader Debugger example',
-      home: Scaffold(body: GradientView(program: program)),
+      home: Scaffold(
+        body: CustomPaint(
+          painter: GradientPainter(shader),
+          child: const SizedBox.expand(),
+        ),
+      ),
     );
   }
 }
 
-class GradientView extends StatefulWidget {
-  const GradientView({super.key, required this.program});
-
-  final ui.FragmentProgram program;
-
-  @override
-  State<GradientView> createState() => _GradientViewState();
-}
-
-class _GradientViewState extends State<GradientView> {
-  // Created once. On hot reload the engine swaps the recompiled program in
-  // place and rebinds named uniform slots, so this shader stays valid.
-  late final ui.FragmentShader _shader = widget.program.fragmentShader();
-
-  @override
-  void dispose() {
-    _shader.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _GradientPainter(_shader),
-      child: const SizedBox.expand(),
-    );
-  }
-}
-
-class _GradientPainter extends CustomPainter {
-  _GradientPainter(this.shader)
+class GradientPainter extends CustomPainter {
+  GradientPainter(this.shader)
     : _size = shader.getUniformVec2('uSize'),
       _colorA = shader.getUniformVec4('uA'),
       _colorB = shader.getUniformVec4('uB');
 
-  final ui.FragmentShader shader;
-  final ui.UniformVec2Slot _size;
-  final ui.UniformVec4Slot _colorA;
-  final ui.UniformVec4Slot _colorB;
+  final DebugShader shader;
+  final DebugUniformVec2 _size;
+  final DebugUniformVec4 _colorA;
+  final DebugUniformVec4 _colorB;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Uniforms are set on every paint: a hot reload that changes the shader
-    // resets its uniform values to zero.
     _size.set(size.width, size.height);
     _colorA.set(0.10, 0.20, 0.90, 1.0);
     _colorB.set(1.00, 0.60, 0.10, 1.0);
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+    // Read shader.shader after setting the uniforms: while the debugger shows
+    // a heatmap it is the probe, with these uniforms copied onto it.
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader.shader);
   }
 
   @override
-  bool shouldRepaint(_GradientPainter oldDelegate) =>
+  bool shouldRepaint(GradientPainter oldDelegate) =>
       oldDelegate.shader != shader;
 }

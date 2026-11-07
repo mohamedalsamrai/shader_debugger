@@ -28,3 +28,6 @@ flutter:
     # the shader being debugged, then hot reloads. It has to be registered
     # here once so the Flutter tool compiles it and swaps it in on reload.
     - shaders/_debug/probe.frag
+    # Test fixture: the instrumenter's golden output for "capture d in
+    # gradient.frag". The runtime tests draw it as the probe.
+    - test/probes/gradient_capture_d.frag

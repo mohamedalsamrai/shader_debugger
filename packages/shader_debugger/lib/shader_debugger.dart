@@ -1,10 +1,21 @@
 /// Debug-only runtime for the Flutter shader debugger.
 ///
-/// Status: scaffold. Milestone M2 adds `DebugShader`, a thin wrapper around
-/// `FragmentShader` that records uniforms by name and replays them on the
-/// probe shader, plus the `ext.shader_debugger.*` service extensions that the
-/// DevTools extension calls. See docs/design.md §3 in the repository.
+/// Wrap fragment shaders in [DebugShader]. In debug mode it records their
+/// uniforms, and while the DevTools extension shows a heatmap it draws the
+/// instrumented probe in their place. [ShaderDebugger] answers the
+/// extension's `ext.shader_debugger.*` service extensions.
 ///
 /// Depending on this package is also what makes DevTools offer the Shader
 /// Debugger extension: the built extension ships in `extension/devtools/`.
 library;
+
+export 'src/debug_shader.dart'
+    show
+        DebugImageSampler,
+        DebugShader,
+        DebugUniformFloat,
+        DebugUniformVec2,
+        DebugUniformVec3,
+        DebugUniformVec4;
+export 'src/shader_debugger.dart'
+    show HeatmapRejection, HeatmapState, ShaderDebugger;
