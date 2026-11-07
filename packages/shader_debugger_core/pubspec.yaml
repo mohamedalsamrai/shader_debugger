@@ -2,7 +2,7 @@ name: shader_debugger_core
 description: >-
   Pure-Dart core of the Flutter shader debugger: a GLSL type model, symbol
   table and probe-shader instrumenter for Flutter fragment shaders.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/mohamedalsamrai/shader_debugger/tree/main/packages/shader_debugger_core
 issue_tracker: https://github.com/mohamedalsamrai/shader_debugger/issues
 topics:

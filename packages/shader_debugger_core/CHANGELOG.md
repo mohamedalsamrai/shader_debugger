@@ -1,3 +1,7 @@
+## 1.0.1
+
+- New README with a usage example. No API changes.
+
 ## 1.0.0
 
 First release.

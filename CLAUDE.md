@@ -47,6 +47,14 @@ resolves against the root `pubspec.lock`.
   `lib/src/devtools_ports.dart` implements them on DevTools' globals.
 - `tool/e2e_heatmap.py`: end-to-end check of the runtime through the real
   Flutter tool on macOS (write probe, hot reload, service extensions).
+- `tool/make_probe.dart`: prints the probe for a shader, line and
+  expression, as the extension would write it.
+- `tool/readme_media.py` with `tool/media/media_app.dart`: records the
+  README's GIFs from the example on macOS (real probes and hot reloads,
+  frames from the app's layer tree). The DevTools page screenshots come from
+  `packages/shader_debugger_devtools/test/media/`, which runs only with
+  `UPDATE_MEDIA=1`. Both write to `doc/media/`; the package READMEs link
+  there with absolute GitHub URLs, so pub.dev can show them.
 - `tool/devtools_session.py`: a real DevTools session for the example (DTD
   with the repo as workspace root, `flutter run`, DevTools) without an IDE.
 

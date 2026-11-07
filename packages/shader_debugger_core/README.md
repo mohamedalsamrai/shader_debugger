@@ -1,30 +1,80 @@
 # shader_debugger_core
 
-Pure-Dart core of the Flutter shader debugger. It has no `dart:io` or Flutter
-dependency, so it runs both in the DevTools extension (Flutter web) and in a
-command-line tool.
+[![pub package](https://img.shields.io/pub/v/shader_debugger_core.svg)](https://pub.dev/packages/shader_debugger_core)
+[![CI](https://github.com/mohamedalsamrai/shader_debugger/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamedalsamrai/shader_debugger/actions/workflows/ci.yml)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/mohamedalsamrai/shader_debugger/blob/main/LICENSE)
 
-**Status: M1 done.** `analyzeShader()` turns a `.frag` file into a
-`ShaderAnalysis`, and `instrument()` turns a picked variable into a probe.
+The pure-Dart engine of the
+[Flutter Shader Debugger](https://pub.dev/packages/shader_debugger): a GLSL
+analyzer for Flutter fragment shaders, and the instrumenter that turns "show
+me this variable at this line" into a probe shader.
 
-| Type | What it is |
-|---|---|
-| `analyzeShader()` | Preprocess, parse and resolve a shader ("The analyzer" in docs/architecture.md). Never throws; problems become diagnostics. |
-| `GlslType` | The GLSL types Flutter shaders use, and how the probe shows each one ("Type → visualization" in docs/architecture.md). |
-| `SymbolTable`, `Scope`, `GlslSymbol` | Scopes (global → function → block) and declarations, with GLSL's visibility rules. |
-| `StatementInfo` | What a statement writes, and what is in scope where its value is captured. |
-| `ShaderAnalysis` | Everything the variable picker needs from one `.frag` file. |
-| `instrument()`, `CaptureRequest`, `Probe` | Probe generation ("Probes" in docs/architecture.md). |
+It has no `dart:io` or Flutter dependency, so it runs in the DevTools
+extension (Flutter web), in command-line tools and on the server.
 
-The instrumenter (`instrument()`) turns an analysis and a picked variable
-into a probe shader. `lib/protocol.dart` holds the names it shares with the
-runtime package.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mohamedalsamrai/shader_debugger/main/doc/media/heatmap.gif" width="560" alt="What the probes it generates make possible: a variable shown as a heatmap in a running app">
+</p>
 
-The tests include a contract (parsing reproduces the hand-built analyses in
-`test/support/fixtures.dart`) and a corpus of real shaders, the Flutter SDK's
-own among them, with a compiled probe at every statement.
+Most apps want [`shader_debugger`](https://pub.dev/packages/shader_debugger)
+instead, which uses this package. Use this one to build your own shader
+tooling.
 
-```sh
-dart test
-dart analyze --fatal-infos
+## Usage
+
+```dart
+import 'package:shader_debugger_core/shader_debugger_core.dart';
+
+void main() {
+  const source = '''
+#version 460 core
+#include <flutter/runtime_effect.glsl>
+
+uniform vec2 uSize;
+out vec4 fragColor;
+
+void main() {
+  vec2 uv = FlutterFragCoord().xy / uSize;
+  float d = length(uv - 0.5);
+  fragColor = vec4(vec3(d), 1.0);
+}
+''';
+
+  // What each statement writes, and what is in scope there.
+  final analysis = analyzeShader(source);
+  for (final statement in analysis.statements) {
+    print('${statement.line + 1}: ${statement.span.text}  '
+        'writes ${statement.writes.map((v) => v.name)}');
+  }
+
+  // A probe that captures d after the line that computes it (lines are
+  // 0-based).
+  final statement = analysis.statementsOnLine(8).single;
+  final probe = instrument(
+    analysis,
+    CaptureRequest(statement: statement, variable: statement.defaultPick!),
+    stamp: 1,
+  );
+  print(probe.source); // ... float d = length(uv - 0.5); _dbg_value = vec4(d, 0.0, 0.0, 1.0); ...
+}
 ```
+
+## What is inside
+
+| API | What it does |
+|---|---|
+| `analyzeShader()` | Preprocesses (conditionals, macros, includes), parses and resolves a shader. Never throws: problems become diagnostics, and a statement it does not understand is not pickable. |
+| `ShaderAnalysis`, `StatementInfo` | Per statement: what it writes (and which part of it, such as `lights[1].color`), what is in scope, and what to pick first. |
+| `SymbolTable`, `Scope`, `GlslSymbol` | Scopes and declarations, with GLSL's visibility rules. |
+| `GlslType` | The types Flutter shaders use, how a probe shows each, and the columns, elements and fields a picker can select. |
+| `instrument()`, `CaptureRequest`, `Probe` | A probe: an edited copy of the shader that also writes the picked value out, for heatmaps and exact pixel reads. |
+| `package:shader_debugger_core/protocol.dart` | The names shared by the runtime and the DevTools extension. |
+
+Probes are checked by compiling them with `impellerc` at every statement of a
+corpus of real shaders, the Flutter SDK's own among them. The
+[architecture notes](https://github.com/mohamedalsamrai/shader_debugger/blob/main/docs/architecture.md)
+cover the analyzer and the probe format.
+
+## License
+
+MIT.

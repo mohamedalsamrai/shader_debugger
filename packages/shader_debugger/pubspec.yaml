@@ -3,7 +3,7 @@ description: >-
   Debug-only runtime for the Flutter shader debugger. It records fragment
   shader uniforms and draws probe shaders for the Shader Debugger DevTools
   extension.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/mohamedalsamrai/shader_debugger/tree/main/packages/shader_debugger
 issue_tracker: https://github.com/mohamedalsamrai/shader_debugger/issues
 topics:

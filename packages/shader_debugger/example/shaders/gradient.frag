@@ -1,5 +1,5 @@
-// The design doc's example shader (docs/design.md §4). A good first target
-// for the debugger: pick `d` to see the distance field as a heatmap.
+// The example the docs use, and a good first target for the debugger: pick
+// `d`, the distance from the center, to see it as a heatmap.
 #version 460 core
 
 #include <flutter/runtime_effect.glsl>

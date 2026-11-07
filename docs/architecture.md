@@ -397,7 +397,9 @@ needs a desktop session and runs by hand.
 ## Open questions
 
 - Should a small CLI also write probes, for setups where DTD has no
-  workspace roots? Today the page offers the probe to paste by hand.
+  workspace roots? Today the page offers the probe to paste by hand, and
+  `tool/make_probe.dart` prints one from the command line; it could become a
+  published `dart run shader_debugger:probe`.
 
 ## References
 

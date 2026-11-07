@@ -267,7 +267,10 @@ class _SidePanel extends StatelessWidget {
       length: 2,
       child: Column(
         children: [
+          // DevTools' theme aligns tab bars to the start, which only a
+          // scrollable tab bar allows; two tabs fill the panel instead.
           const TabBar(
+            tabAlignment: TabAlignment.fill,
             tabs: [
               Tab(text: 'Inspect'),
               Tab(text: 'Uniforms'),

@@ -134,9 +134,14 @@ class ExampleShader {
 }
 
 class ExampleApp extends StatefulWidget {
-  const ExampleApp({super.key, required this.shaders});
+  const ExampleApp({super.key, required this.shaders, this.time});
 
   final List<ExampleShader> shaders;
+
+  /// Seconds of animation, set from outside, for example to record frames
+  /// at exact times. By default the app animates on its own, with a pause
+  /// button.
+  final ValueListenable<double>? time;
 
   @override
   State<ExampleApp> createState() => _ExampleAppState();
@@ -149,10 +154,12 @@ class _ExampleAppState extends State<ExampleApp>
   late final Ticker _ticker = createTicker(_tick);
   double _pausedAt = 0;
 
+  ValueListenable<double> get _clock => widget.time ?? _time;
+
   @override
   void initState() {
     super.initState();
-    _ticker.start();
+    if (widget.time == null) _ticker.start();
   }
 
   @override
@@ -181,16 +188,18 @@ class _ExampleAppState extends State<ExampleApp>
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Shader Debugger example',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo),
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Shader Debugger example'),
           actions: [
-            IconButton(
-              icon: Icon(_ticker.isActive ? Icons.pause : Icons.play_arrow),
-              tooltip: _ticker.isActive ? 'Pause' : 'Play',
-              onPressed: _togglePlaying,
-            ),
+            if (widget.time == null)
+              IconButton(
+                icon: Icon(_ticker.isActive ? Icons.pause : Icons.play_arrow),
+                tooltip: _ticker.isActive ? 'Pause' : 'Play',
+                onPressed: _togglePlaying,
+              ),
           ],
         ),
         body: GridView.extent(
@@ -201,7 +210,7 @@ class _ExampleAppState extends State<ExampleApp>
           childAspectRatio: 0.9,
           children: [
             for (final shader in widget.shaders)
-              _ShaderCard(shader: shader, time: _time),
+              _ShaderCard(shader: shader, time: _clock),
           ],
         ),
       ),

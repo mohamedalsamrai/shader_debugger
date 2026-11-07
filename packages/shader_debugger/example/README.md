@@ -3,6 +3,10 @@
 Demo app for the Flutter shader debugger: a gallery of shaders, each with a
 hint on what to try.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mohamedalsamrai/shader_debugger/main/doc/media/gallery.png" width="640" alt="The example gallery: gradient.frag and lights.frag on cards, with hints on what to pick">
+</p>
+
 | Shader | Shows |
 |---|---|
 | [`gradient.frag`](shaders/gradient.frag) | A scalar heatmap (`d`). The example [docs/architecture.md](../../../docs/architecture.md) uses. |

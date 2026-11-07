@@ -4,7 +4,7 @@ description: >-
   ships inside package:shader_debugger under extension/devtools/build.
 # Not published on its own: its build ships in package:shader_debugger.
 publish_to: none
-version: 1.0.0
+version: 1.0.1
 resolution: workspace
 
 environment:

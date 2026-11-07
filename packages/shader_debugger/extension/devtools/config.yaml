@@ -3,7 +3,7 @@
 name: shader_debugger
 issueTracker: https://github.com/mohamedalsamrai/shader_debugger/issues
 # Keep in step with package:shader_debugger's version.
-version: 1.0.0
+version: 1.0.1
 # Icons.gradient
 materialIconCodePoint: '0xe2e0'
 requiresConnection: true

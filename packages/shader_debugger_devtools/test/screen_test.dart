@@ -1,3 +1,4 @@
+import 'package:devtools_app_shared/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_debugger_core/protocol.dart';
@@ -25,7 +26,14 @@ void main() {
     )..start();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
+      // DevTools' own theme, as the extension gets it: some of its settings
+      // constrain widgets (tab bars, for one).
       MaterialApp(
+        theme: themeFor(
+          isDarkTheme: false,
+          ideTheme: IdeTheme(),
+          theme: ThemeData(useMaterial3: true, colorScheme: lightColorScheme),
+        ),
         home: Scaffold(body: ShaderDebuggerScreen(controller: controller)),
       ),
     );
