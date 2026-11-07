@@ -17,3 +17,12 @@ The setup a user's app needs is all here:
 - `shaders/_debug/probe.frag`, registered once under `flutter: shaders:` in
   `pubspec.yaml`. The extension overwrites it with the instrumented probe and
   hot reloads.
+
+Commit only the placeholder probe, never a generated one. To keep the
+extension's writes out of `git status` in your clone, run once:
+
+```sh
+git update-index --skip-worktree shaders/_debug/probe.frag
+```
+
+Undo it with `--no-skip-worktree` before changing the placeholder on purpose.

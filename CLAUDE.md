@@ -32,7 +32,9 @@ resolves against the root `pubspec.lock`.
 - `packages/shader_debugger/example/`: demo app and the runtime's tests.
   `shaders/gradient.frag` is the example shader the docs use;
   `shaders/_debug/probe.frag` is the placeholder probe the extension
-  overwrites. `test/probes/gradient_capture_d.frag` is the instrumenter's
+  overwrites; commit only the placeholder (the example's README says how to
+  hide the extension's writes from `git status`).
+  `test/probes/gradient_capture_d.frag` is the instrumenter's
   golden output, which the runtime tests draw.
 - `packages/shader_debugger_devtools/`: the DevTools extension (Flutter web).
   `lib/src/controller.dart` runs the heatmap flow; `lib/src/screen.dart` is
