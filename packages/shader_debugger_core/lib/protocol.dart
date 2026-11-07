@@ -8,7 +8,7 @@ library;
 
 /// The version of the app ↔ extension protocol. Bump it when a service
 /// extension or a probe uniform changes meaning.
-const int protocolVersion = 1;
+const int protocolVersion = 2;
 
 /// Where the probe shader lives in the app, as an asset key. The app must
 /// register it under `flutter: shaders:` in its pubspec.
@@ -34,12 +34,19 @@ abstract final class ProbeUniforms {
 }
 
 /// What the probe writes to its output.
+///
+/// Both pixel modes pin `FlutterFragCoord()` to [ProbeUniforms.coord] and
+/// write an alpha of 1, so that alpha never scales the color: reading a
+/// `vec4` takes one pass for x, y and z and one for w.
 enum ProbeMode {
   /// The captured value, normalized by the range and colored.
   heatmap(0.0),
 
-  /// The raw captured value, for exact readback.
-  pixel(1.0);
+  /// The raw x, y and z of the captured value, with an alpha of 1.
+  pixel(1.0),
+
+  /// The raw w of the captured value, in the red channel.
+  pixelW(2.0);
 
   const ProbeMode(this.uniformValue);
 
@@ -65,4 +72,36 @@ abstract final class ServiceExtensions {
 
   /// Draws the original shaders again.
   static const String hideHeatmap = '$prefix.hideHeatmap';
+
+  /// Reads the captured value at one point, as exact 32-bit floats.
+  ///
+  /// Parameters: `asset`, `stamp`, and `x` and `y` in the shader's
+  /// coordinates (what `FlutterFragCoord()` returns there). Optionally
+  /// `instance`, from a [ServiceEvents.pixelPicked] event, picks which
+  /// `DebugShader` for the asset supplies the uniforms; by default, the first
+  /// one. Answers `{"applied": true, "value": [x, y, z, w]}`, or `applied`
+  /// false with a `reason`, as [showHeatmap] does.
+  static const String readPixel = '$prefix.readPixel';
+
+  /// Waits for the next tap in the app, then posts a
+  /// [ServiceEvents.pixelPicked] event with the shader coordinates under it.
+  ///
+  /// Parameters: `asset`. With `x` and `y` too, picks at that global logical
+  /// position right away and answers with the event's data, without
+  /// waiting for a tap.
+  static const String pickPixel = '$prefix.pickPixel';
+
+  /// Stops waiting for a tap.
+  static const String cancelPick = '$prefix.cancelPick';
+}
+
+/// The events the runtime package posts on the VM service's Extension
+/// stream.
+abstract final class ServiceEvents {
+  /// A pixel was picked after [ServiceExtensions.pickPixel].
+  ///
+  /// Data: `asset`, and either `instance`, `x` and `y` (the shader
+  /// coordinates of the device pixel tapped, at its center), or a `reason`:
+  /// `notOnShader` when the tap missed every `DebugShader` for the asset.
+  static const String pixelPicked = 'shader_debugger.pixelPicked';
 }

@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:shader_debugger_core/protocol.dart';
 
 import 'shader_debugger.dart';
@@ -44,6 +45,16 @@ class DebugShader {
   /// The asset key of the shader's source, such as `shaders/gradient.frag`.
   final String asset;
 
+  static int _lastId = 0;
+
+  /// Tells this shader apart from others for the same [asset], in the
+  /// service extensions.
+  @internal
+  final int debugId = ++_lastId;
+
+  /// The render boxes that painted with [shader] lately, most recent first.
+  final List<WeakReference<RenderBox>> _painters = [];
+
   final ui.FragmentShader _original;
   final Map<(String, int), double> _floats = {};
   final Map<String, ui.Image> _images = {};
@@ -62,6 +73,7 @@ class DebugShader {
   ui.Shader get shader {
     assert(!_disposed, 'DebugShader used after dispose: $asset');
     if (!kDebugMode) return _original;
+    _notePainter();
     final heatmap = ShaderDebugger.instance.heatmapFor(asset);
     if (heatmap == null) return _original;
     final probe = _probe ??= ShaderDebugger.instance.newProbeShader();
@@ -121,6 +133,34 @@ class DebugShader {
     _images.clear();
   }
 
+  /// The attached render boxes that painted with [shader] lately, most
+  /// recent first. A tap maps to the shader's coordinates through them.
+  @internal
+  Iterable<RenderBox> get painters => _painters
+      .map((reference) => reference.target)
+      .whereType<RenderBox>()
+      .where((box) => box.attached);
+
+  /// Sets the recorded uniforms on [target], a shader from the probe, by
+  /// name. Uniforms the probe does not have are skipped.
+  @internal
+  void replayOnto(ui.FragmentShader target) {
+    for (final MapEntry(key: (name, index), :value) in _floats.entries) {
+      try {
+        target.getUniformFloat(name, index).set(value);
+      } on ArgumentError {
+        // Not in the probe.
+      }
+    }
+    for (final MapEntry(key: name, value: image) in _images.entries) {
+      try {
+        target.getImageSampler(name).set(image);
+      } on ArgumentError {
+        // Not in the probe.
+      }
+    }
+  }
+
   /// Forgets the probe's slots; called when a different probe is shown.
   @internal
   void resetProbe({required bool discardShader}) {
@@ -130,6 +170,23 @@ class DebugShader {
       _probe?.dispose();
       _probe = null;
     }
+  }
+
+  // Remembers the render box painting with this shader. A painter that
+  // transforms the canvas itself is not accounted for.
+  void _notePainter() {
+    final painter = RenderObject.debugActivePaint;
+    if (painter is! RenderBox) return;
+    if (_painters.isNotEmpty && identical(_painters.first.target, painter)) {
+      return;
+    }
+    _painters
+      ..removeWhere(
+        (reference) =>
+            reference.target == null || identical(reference.target, painter),
+      )
+      ..insert(0, WeakReference(painter));
+    if (_painters.length > 8) _painters.removeLast();
   }
 
   void _record(String name, int index, double value) {

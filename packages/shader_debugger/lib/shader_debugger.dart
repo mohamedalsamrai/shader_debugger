@@ -2,7 +2,8 @@
 ///
 /// Wrap fragment shaders in [DebugShader]. In debug mode it records their
 /// uniforms, and while the DevTools extension shows a heatmap it draws the
-/// instrumented probe in their place. [ShaderDebugger] answers the
+/// instrumented probe in their place; it also reads the probe's exact value
+/// at a pixel. [ShaderDebugger] answers the
 /// extension's `ext.shader_debugger.*` service extensions.
 ///
 /// Depending on this package is also what makes DevTools offer the Shader
@@ -18,4 +19,4 @@ export 'src/debug_shader.dart'
         DebugUniformVec3,
         DebugUniformVec4;
 export 'src/shader_debugger.dart'
-    show HeatmapRejection, HeatmapState, ShaderDebugger;
+    show HeatmapState, PixelReading, ProbeRejection, ShaderDebugger;

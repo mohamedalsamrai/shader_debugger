@@ -15,8 +15,8 @@ uniform vec4 uB;
 out vec4 fragColor;
 
 void _dbg_main() {
-  vec2 uv = _dbg_fragCoord().xy / uSize;
-  float d = length(uv - 0.5); _dbg_value = fragColor;
+  vec2 uv = _dbg_fragCoord().xy / uSize; _dbg_value = uB;
+  float d = length(uv - 0.5);
   vec3 col = mix(uA.rgb, uB.rgb, d);
   fragColor = vec4(col, 1.0);
 }
@@ -25,7 +25,7 @@ void _dbg_main() {
 uniform float _dbg_mode;
 uniform vec2 _dbg_coord;
 uniform vec2 _dbg_range;
-uniform float _dbg_stamp_794062475;
+uniform float _dbg_stamp_794080723;
 
 vec2 _dbg_fragCoord() {
   return _dbg_mode > 0.5 ? _dbg_coord : FlutterFragCoord();

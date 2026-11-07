@@ -251,8 +251,13 @@ String _encodeFunction(Visualization visualization) {
   return '''
 
 vec4 _dbg_encode(vec4 v) {
+  // Pixel modes write raw values with an alpha of 1, so that alpha never
+  // scales them; w is read in a second pass.
+  if (${ProbeUniforms.mode} > 1.5) {
+    return vec4(v.w, 0.0, 0.0, 1.0);
+  }
   if (${ProbeUniforms.mode} > 0.5) {
-    return v;
+    return vec4(v.xyz, 1.0);
   }
   float extent = ${ProbeUniforms.range}.y - ${ProbeUniforms.range}.x;
   float scale = extent != 0.0 ? 1.0 / extent : 0.0;

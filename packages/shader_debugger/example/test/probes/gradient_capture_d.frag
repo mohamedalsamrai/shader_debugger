@@ -49,8 +49,13 @@ vec3 _dbg_colormap(float t) {
 }
 
 vec4 _dbg_encode(vec4 v) {
+  // Pixel modes write raw values with an alpha of 1, so that alpha never
+  // scales them; w is read in a second pass.
+  if (_dbg_mode > 1.5) {
+    return vec4(v.w, 0.0, 0.0, 1.0);
+  }
   if (_dbg_mode > 0.5) {
-    return v;
+    return vec4(v.xyz, 1.0);
   }
   float extent = _dbg_range.y - _dbg_range.x;
   float scale = extent != 0.0 ? 1.0 / extent : 0.0;

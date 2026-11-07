@@ -84,7 +84,7 @@ void main() {
       final rejection = await debugger.showHeatmap(
         const HeatmapState(asset: gradient, stamp: 2),
       );
-      expect(rejection, HeatmapRejection.probeNotLoaded);
+      expect(rejection, ProbeRejection.probeNotLoaded);
       expect(debugger.heatmap, isNull);
     });
 
@@ -92,7 +92,7 @@ void main() {
       final rejection = await debugger.showHeatmap(
         const HeatmapState(asset: 'shaders/other.frag', stamp: goldenStamp),
       );
-      expect(rejection, HeatmapRejection.noShaderForAsset);
+      expect(rejection, ProbeRejection.noShaderForAsset);
     });
 
     test('a probe asset that is not registered', () async {
@@ -100,7 +100,7 @@ void main() {
       final rejection = await debugger.showHeatmap(
         const HeatmapState(asset: gradient, stamp: goldenStamp),
       );
-      expect(rejection, HeatmapRejection.probeMissing);
+      expect(rejection, ProbeRejection.probeMissing);
     });
   });
 
