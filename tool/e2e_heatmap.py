@@ -182,6 +182,7 @@ try:
         check('readPixel reads d as a 32-bit float',
               reading.get('applied') and abs(value[0] - expected) < 1e-5 and value[1:] == [0.0, 0.0, 1.0],
               'read %r, expected d = %.9f' % (value, expected))
+        check('readPixel says the read is exact', reading.get('exact') is True, reading)
         stale = extension('readPixel', asset=ASSET, stamp=1, x=pick['x'], y=pick['y'])
         check('readPixel checks the stamp', stale.get('reason') == 'probeNotLoaded', stale)
 
@@ -216,6 +217,27 @@ try:
     mode = extension('setPixelSelectMode', enabled='false')
     selecting = extension('getInfo').get('pixelSelectMode')
     check('select mode turns off', mode.get('enabled') is False and selecting is None, mode)
+
+    # Hot restart: the app forgets the heatmap, select mode and overrides,
+    # but keeps the compiled probe, which the DevTools page relies on to
+    # show them again without a reload.
+    extension('setPixelSelectMode', enabled='true', asset=ASSET)
+    extension('setUniformOverride', asset=ASSET, name='uA', values='0,1,0,1')
+    restart = call('app.restart', {'appId': app_id, 'fullRestart': True, 'pause': False}).get('result', {})
+    check('hot restart', restart.get('code') == 0, restart)
+    info = {}
+    for _ in range(50):
+        info = extension('getInfo')
+        if 'error' not in info:
+            break
+        time.sleep(0.2)
+    check('after a restart, no heatmap and no select mode',
+          'error' not in info and info.get('heatmap') is None and info.get('pixelSelectMode') is None, info)
+    overrides = extension('getUniforms', asset=ASSET).get('overrides')
+    check('after a restart, no overrides', overrides == {}, overrides)
+    result, attempts = show(2)
+    check('after a restart, the probe is still loaded', result.get('applied'),
+          '%s after %d attempt(s)' % (result, attempts))
 
     broken = golden.replace('_dbg_stamp_1', '_dbg_stamp_3').replace('length(', 'lenth(')
     reload = hot_reload_with(broken)

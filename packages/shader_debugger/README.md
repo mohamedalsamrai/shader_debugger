@@ -3,8 +3,9 @@
 Debug-only runtime for the Flutter shader debugger. Add it to an app to get the
 Shader Debugger tab in DevTools.
 
-**Status: heatmap (M2), pixel inspector (M3) and uniform overrides (M4)
-built.** See
+**1.0.0: heatmaps, an exact pixel inspector and uniform overrides.**
+Verified on macOS with Impeller; iOS, Android, Windows and Linux are untested
+so far, so please report what you find. See
 [docs/architecture.md](../../docs/architecture.md).
 
 ## Use

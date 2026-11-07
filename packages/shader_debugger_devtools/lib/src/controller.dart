@@ -51,6 +51,7 @@ final class PixelValue {
     required this.probe,
     required this.coord,
     required this.components,
+    this.exact = true,
   });
 
   /// The probe that captured it: what was captured, of which type, where.
@@ -62,6 +63,10 @@ final class PixelValue {
   /// x, y, z and w; only the first `probe.visualization.componentCount`
   /// carry the value.
   final List<double> components;
+
+  /// False when the renderer rounded [components] to 8 bits per channel,
+  /// clamped to 0..1.
+  final bool exact;
 }
 
 /// A uniform of the shader, as the Uniforms tab lists it.
@@ -123,6 +128,12 @@ class ShaderDebuggerController extends ChangeNotifier {
 
   AppConnection get connection => _connection;
   AppConnection _connection = AppConnection.waiting;
+
+  /// Whether the app is restarting: its runtime went away after the
+  /// debugger connected. The heatmap, select mode and overrides come back
+  /// once it is up again.
+  bool get restarting => _restarted && _connection == AppConnection.waiting;
+  bool _restarted = false;
 
   /// Why connecting failed.
   String? get connectionError => _connectionError;
@@ -333,9 +344,16 @@ class ShaderDebuggerController extends ChangeNotifier {
   }
 
   void _runtimeChanged() {
-    if (app.hasRuntime.value && _connection == AppConnection.waiting) {
-      connect();
+    if (!app.hasRuntime.value) {
+      // The app restarted, or is going away: it forgets what it was asked.
+      if (_connection == AppConnection.ready) {
+        _restarted = true;
+        _connection = AppConnection.waiting;
+        _notify();
+      }
+      return;
     }
+    if (_connection == AppConnection.waiting) connect();
   }
 
   /// Asks the app what it draws, and finds its package directory.
@@ -362,7 +380,13 @@ class ShaderDebuggerController extends ChangeNotifier {
           info.shaders.isNotEmpty) {
         await selectShader(info.shaders.first);
       }
-      await _resumePixelSelect(info.pixelSelectAsset);
+      final restarted = _restarted;
+      _restarted = false;
+      if (restarted) {
+        await _reapply();
+      } else {
+        await _resumePixelSelect(info.pixelSelectAsset);
+      }
     } on Object catch (error) {
       _fail('Could not reach the app: $error');
     }
@@ -397,8 +421,36 @@ class ShaderDebuggerController extends ChangeNotifier {
     return library.replace(pathSegments: [...segments.take(lib), '']);
   }
 
+  /// After a restart: has the app show again what it forgot. Overrides go
+  /// first, so the heatmap and the pixel value reflect them. The probe is
+  /// still compiled into the app, so nothing is written or reloaded.
+  Future<void> _reapply() async {
+    final asset = _asset;
+    if (asset == null) return;
+    for (final MapEntry(key: name, value: values)
+        in _uniformOverrides.entries.toList()) {
+      await setUniformOverride(name, values);
+    }
+    if (_selectingPixel) {
+      try {
+        _selectTakesClicks = await app.setPixelSelectMode(
+          enabled: true,
+          asset: asset,
+        );
+      } on Object {
+        _stopSelecting();
+      }
+    }
+    await Future.wait([
+      if (_status == HeatmapStatus.shown) showHeatmap(),
+      if (_pixelStatus == PixelStatus.shown && _pixel != null) readPixel(),
+    ]);
+  }
+
   /// Reads and analyzes the shader at [asset].
   Future<void> selectShader(String asset) async {
+    // The heatmap belongs to the shader it was made for.
+    if (_status != HeatmapStatus.off) await hideHeatmap();
     _asset = asset;
     _analysis = null;
     _sourceError = null;
@@ -725,8 +777,13 @@ class ShaderDebuggerController extends ChangeNotifier {
     );
     if (operation != _pixelOperation) return;
     switch (answer) {
-      case PixelAnswer(applied: true, :final value?):
-        _pixelValue = PixelValue(probe: probe, coord: coord, components: value);
+      case PixelAnswer(applied: true, :final value?, :final exact):
+        _pixelValue = PixelValue(
+          probe: probe,
+          coord: coord,
+          components: value,
+          exact: exact,
+        );
         _setPixel(PixelStatus.shown, null);
       case _Failure(:final message):
         _setPixel(PixelStatus.failed, message);

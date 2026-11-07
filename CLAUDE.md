@@ -58,6 +58,8 @@ flutter analyze                       # at the root: analyzes every package
 (cd packages/shader_debugger_core && dart test)   # includes impellerc compile checks
 (cd packages/shader_debugger/example && flutter test)   # runtime, real shaders
 python3 tool/e2e_heatmap.py [SCREENSHOT_DIR]            # end to end, macOS
+# CI (.github/workflows/ci.yml) runs all of the above on macOS except the e2e,
+# plus the extension build and `pub publish --dry-run` for both packages.
 (cd packages/shader_debugger_devtools && flutter test)  # extension, with fakes
 
 # The extension against a real session: build it, start the session (prints

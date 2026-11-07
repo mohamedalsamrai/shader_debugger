@@ -1,6 +1,14 @@
-## 0.0.1 (unreleased)
+## 1.0.0
 
-- Package scaffold and DevTools extension config.
-- `DebugShader`: records uniforms by name and draws the probe while a heatmap is shown.
-- `ShaderDebugger`: probe loading, stamp check, and the `ext.shader_debugger.getInfo`,
-  `showHeatmap` and `hideHeatmap` service extensions.
+First release. Verified end to end on macOS with Impeller; other platforms
+are untested so far.
+
+- `DebugShader`: wraps a fragment shader, records its uniforms by name, and
+  draws the probe while a heatmap is shown. Inert in profile and release.
+- `ShaderDebugger`: the `ext.shader_debugger.*` service extensions for the
+  DevTools extension:
+  - heatmaps of any value at any statement;
+  - exact pixel reads (32-bit floats on Impeller), with pixel select mode, an
+    overlay in the app modeled on the widget inspector's select mode;
+  - uniform overrides, applied to the shader and the probe until cleared.
+- The Shader Debugger DevTools extension, built into `extension/devtools/`.

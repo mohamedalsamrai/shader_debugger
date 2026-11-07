@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # macOS: the core's tests compile probes with the macOS impellerc, and the
+    # runtime's tests compile the example's shaders.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed packages tool
+
+      - name: Runtime tests (real shaders, through the test engine)
+        working-directory: packages/shader_debugger/example
+        run: flutter test
+
+      # The core's compile tests skip without impellerc; fail instead.
+      - name: Check that impellerc is there
+        run: test -x "$(dirname "$(which flutter)")/cache/artifacts/engine/darwin-x64/impellerc"
+
+      - name: Core tests (including impellerc compiles of probes)
+        working-directory: packages/shader_debugger_core
+        run: dart test
+
+      - name: Extension tests
+        working-directory: packages/shader_debugger_devtools
+        run: flutter test
+
+      - name: Build and validate the DevTools extension
+        working-directory: packages/shader_debugger_devtools
+        run: |
+          dart run devtools_extensions build_and_copy --source=. --dest=../shader_debugger/extension/devtools
+          dart run devtools_extensions validate --package=../shader_debugger
+
+      - name: Publish dry run
+        run: |
+          (cd packages/shader_debugger_core && dart pub publish --dry-run)
+          (cd packages/shader_debugger && flutter pub publish --dry-run)

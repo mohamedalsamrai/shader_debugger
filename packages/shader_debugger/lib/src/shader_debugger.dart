@@ -107,7 +107,15 @@ final class PixelTarget {
 }
 
 /// The value [ShaderDebugger.readPixel] read, or why it could not.
-typedef PixelReading = ({List<double>? value, ProbeRejection? rejection});
+///
+/// [exact] is false when the renderer rounded the value to 8 bits per
+/// channel, clamped to 0..1, because it cannot draw into a 32-bit float
+/// image.
+typedef PixelReading = ({
+  List<double>? value,
+  ProbeRejection? rejection,
+  bool exact,
+});
 
 /// The app side of the Shader Debugger: it tracks the live [DebugShader]s,
 /// owns the probe program, and answers the DevTools extension through the
@@ -138,6 +146,10 @@ final class ShaderDebugger {
 
   /// Whether select mode watches pointers instead, without an overlay.
   bool _watchingPointers = false;
+
+  /// Whether this renderer reads pixels back as exact 32-bit floats; found
+  /// out once.
+  Future<bool>? _exactReadback;
 
   /// Set while [pixelTargetAt] hit tests, so the select mode overlay lets the
   /// test through to the app below it.
@@ -208,23 +220,39 @@ final class ShaderDebugger {
     int? instance,
   }) async {
     if (!kDebugMode) {
-      return (value: null, rejection: ProbeRejection.noShaderForAsset);
+      return (
+        value: null,
+        rejection: ProbeRejection.noShaderForAsset,
+        exact: false,
+      );
     }
     final candidates = shaders.where((shader) => shader.asset == asset);
     final shader =
         candidates.where((shader) => shader.debugId == instance).firstOrNull ??
         candidates.firstOrNull;
     if (shader == null) {
-      return (value: null, rejection: ProbeRejection.noShaderForAsset);
+      return (
+        value: null,
+        rejection: ProbeRejection.noShaderForAsset,
+        exact: false,
+      );
     }
     final ui.FragmentProgram program;
     try {
       program = await _loadProbe();
     } on Exception {
-      return (value: null, rejection: ProbeRejection.probeMissing);
+      return (
+        value: null,
+        rejection: ProbeRejection.probeMissing,
+        exact: false,
+      );
     }
     if (!_hasStamp(program, stamp)) {
-      return (value: null, rejection: ProbeRejection.probeNotLoaded);
+      return (
+        value: null,
+        rejection: ProbeRejection.probeNotLoaded,
+        exact: false,
+      );
     }
     final probe = program.fragmentShader();
     try {
@@ -232,10 +260,14 @@ final class ShaderDebugger {
       probe.getUniformVec2(ProbeUniforms.coord).set(coord.dx, coord.dy);
       final mode = probe.getUniformFloat(ProbeUniforms.mode)
         ..set(ProbeMode.pixel.uniformValue);
-      final xyz = await _drawPixel(probe);
+      final xyz = await _drawPixel(Paint()..shader = probe);
       mode.set(ProbeMode.pixelW.uniformValue);
-      final w = await _drawPixel(probe);
-      return (value: [xyz[0], xyz[1], xyz[2], w[0]], rejection: null);
+      final w = await _drawPixel(Paint()..shader = probe);
+      return (
+        value: [xyz[0], xyz[1], xyz[2], w[0]],
+        rejection: null,
+        exact: await (_exactReadback ??= _readsExactFloats()),
+      );
     } finally {
       probe.dispose();
     }
@@ -474,13 +506,20 @@ final class ShaderDebugger {
     );
   }
 
-  static Future<List<double>> _drawPixel(ui.FragmentShader shader) async {
+  /// Draws a known 0.3 into a 32-bit float pixel and reads it back: an
+  /// 8-bit target returns 77/255 instead.
+  static Future<bool> _readsExactFloats() async {
+    final read = await _drawPixel(
+      Paint()..color = const Color.from(alpha: 1, red: 0.3, green: 0, blue: 0),
+    );
+    return (read[0] - 0.3).abs() < 1e-6;
+  }
+
+  static Future<List<double>> _drawPixel(Paint paint) async {
     final recorder = ui.PictureRecorder();
     ui.Canvas(recorder).drawRect(
       const Rect.fromLTWH(0, 0, 1, 1),
-      Paint()
-        ..shader = shader
-        ..blendMode = BlendMode.src,
+      paint..blendMode = BlendMode.src,
     );
     final picture = recorder.endRecording();
     final image = picture.toImageSync(
@@ -556,6 +595,7 @@ final class ShaderDebugger {
         return {
           'applied': reading.rejection == null,
           'reason': reading.rejection?.name,
+          'exact': reading.exact,
           // JSON has no NaN or infinities; a shader value can be either.
           'value': [
             for (final component in reading.value ?? const <double>[])

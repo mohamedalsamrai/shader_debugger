@@ -1,9 +1,9 @@
 # Read by DevTools to load the Shader Debugger extension.
 # Spec: https://pub.dev/packages/devtools_extensions (extension_config_spec.md)
 name: shader_debugger
-# TODO: point at the real issue tracker once the repository is public.
-issueTracker: https://github.com/OWNER/shader_debugger/issues
-version: 0.0.1
+issueTracker: https://github.com/mohamedalsamrai/shader_debugger/issues
+# Keep in step with package:shader_debugger's version.
+version: 1.0.0
 # Icons.gradient
 materialIconCodePoint: '0xe2e0'
 requiresConnection: true

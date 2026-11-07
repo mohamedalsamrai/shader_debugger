@@ -163,11 +163,15 @@ void main() {
     expect(app.selecting, isNull);
     expect(find.textContaining('Clicks go to the debugger'), findsNothing);
 
+    expect(find.textContaining('Rounded to 8 bits'), findsNothing);
+
+    app.exactPixels = false;
     await tester.enterText(find.widgetWithText(TextField, 'X'), '1');
     await tester.enterText(find.widgetWithText(TextField, 'Y'), '2');
     await tester.tap(find.text('Read'));
     await tester.pumpAndSettle();
     expect(find.text('0.01'), findsOneWidget);
+    expect(find.textContaining('Rounded to 8 bits'), findsOneWidget);
     expect(app.reloads, 1);
   });
 
@@ -198,6 +202,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(app.overrides, isEmpty);
     expect(find.byType(Slider), findsNothing);
+  });
+
+  testWidgets('says when the app is restarting', (tester) async {
+    app.runtime.value = true;
+    await pumpScreen(tester);
+    await tester.pumpAndSettle();
+    app.runtime.value = false;
+    await tester.pump();
+    expect(find.text('The app is restarting'), findsOneWidget);
+    app.runtime.value = true;
+    await tester.pumpAndSettle();
+    expect(find.text('The app is restarting'), findsNothing);
+    expect(find.text(gradientAsset), findsOneWidget);
   });
 
   testWidgets('a failed connection can be retried', (tester) async {

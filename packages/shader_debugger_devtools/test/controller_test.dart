@@ -582,6 +582,74 @@ void main() {
     });
   });
 
+  group('hot restart', () {
+    setUp(() async {
+      await connect();
+      controller.selectLine(lineOf('float d ='));
+    });
+
+    test('says the app is restarting while it is away', () async {
+      app.runtime.value = false;
+      expect(controller.connection, AppConnection.waiting);
+      expect(controller.restarting, isTrue);
+      app.runtime.value = true;
+      await pumpEventQueue();
+      expect(controller.connection, AppConnection.ready);
+      expect(controller.restarting, isFalse);
+    });
+
+    test('shows the heatmap again, without writing the probe again', () async {
+      await controller.showHeatmap();
+      await app.restart();
+      await pumpEventQueue();
+      expect(controller.status, HeatmapStatus.shown);
+      expect(app.shown?.stamp, controller.shownProbe!.stamp);
+      expect(app.reloads, 1);
+    });
+
+    test('turns select mode and the overrides back on', () async {
+      await controller.setPixelSelectMode(true);
+      await controller.setUniformOverride('uA', [0, 1, 0, 1]);
+      await app.restart();
+      await pumpEventQueue();
+      expect(controller.selectingPixel, isTrue);
+      expect(app.selecting, gradientAsset);
+      expect(app.overrides, {
+        'uA': [0, 1, 0, 1],
+      });
+    });
+
+    test('reads the pixel again', () async {
+      await controller.setPixel(10, 20);
+      app.pixelValue = (x, y) => [0.75, 0, 0, 1];
+      await app.restart();
+      await pumpEventQueue();
+      expect(controller.pixelValue?.components.first, 0.75);
+    });
+  });
+
+  test('another shader hides the heatmap of the last one', () async {
+    await connect();
+    controller.selectLine(lineOf('float d ='));
+    await controller.showHeatmap();
+    await controller.selectShader(gradientAsset);
+    expect(controller.status, HeatmapStatus.off);
+    expect(app.shown, isNull);
+  });
+
+  test('says when a pixel read was rounded to 8 bits', () async {
+    await connect();
+    controller.selectLine(lineOf('float d ='));
+    app.exactPixels = false;
+    await controller.setPixel(1, 2);
+    expect(controller.pixelValue?.exact, isFalse);
+    expect(
+      PixelAnswer.fromJson({'applied': true, 'exact': false}).exact,
+      false,
+    );
+    expect(PixelAnswer.fromJson({'applied': true}).exact, isTrue);
+  });
+
   test('pixel values that JSON cannot carry arrive as strings', () {
     final answer = PixelAnswer.fromJson({
       'applied': true,

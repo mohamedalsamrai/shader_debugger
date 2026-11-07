@@ -52,7 +52,12 @@ class ProbeAnswer {
 
 /// The app's answer to `ext.shader_debugger.readPixel`.
 final class PixelAnswer extends ProbeAnswer {
-  const PixelAnswer({required super.applied, super.reason, this.value});
+  const PixelAnswer({
+    required super.applied,
+    super.reason,
+    this.value,
+    this.exact = true,
+  });
 
   factory PixelAnswer.fromJson(Map<String, Object?> json) => PixelAnswer(
     applied: json['applied'] == true,
@@ -61,10 +66,15 @@ final class PixelAnswer extends ProbeAnswer {
       final List<Object?> value when value.isNotEmpty => _floats(value),
       _ => null,
     },
+    exact: json['exact'] != false,
   );
 
   /// The captured value's x, y, z and w, once applied.
   final List<double>? value;
+
+  /// False when the renderer rounded [value] to 8 bits per channel, clamped
+  /// to 0..1, because it cannot draw into a 32-bit float image.
+  final bool exact;
 }
 
 /// Floats from JSON: numbers, or NaN, Infinity and -Infinity as strings,

@@ -21,6 +21,13 @@ class ShaderDebuggerScreen extends StatelessWidget {
       child: ListenableBuilder(
         listenable: controller,
         builder: (context, _) => switch (controller.connection) {
+          AppConnection.waiting when controller.restarting => const _Notice(
+            icon: Icons.restart_alt,
+            title: 'The app is restarting',
+            body:
+                'The heatmap, select mode and uniform overrides come back once '
+                'it is up again.',
+          ),
           AppConnection.waiting => const _Notice(
             icon: Icons.hourglass_empty,
             title: 'Waiting for the app',
@@ -836,6 +843,17 @@ class _PixelResult extends StatelessWidget {
                   ),
                 ],
               ),
+            if (!value.exact) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Rounded to 8 bits per channel and clamped to 0..1: this '
+                'renderer cannot read pixels back as 32-bit floats. Run the '
+                'app with Impeller for exact values.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
             if (message.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(message, style: theme.textTheme.bodySmall),

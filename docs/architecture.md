@@ -107,9 +107,26 @@ developer's own hot reloads do not fail on the broken one.
 
 Checked on macOS with Impeller: the read is exact (`d` came back as the
 float32 of its true value, and values outside 0..1 are not clamped). The
-default target format, and the engine `flutter test` uses, round to 8 bits
-per channel. JSON has no NaN or infinities, so those components travel as the
-strings `NaN`, `Infinity` and `-Infinity`.
+default target format, and renderers that ignore `rgbaFloat32` (Skia, the
+engine `flutter test` uses), round to 8 bits per channel. So the runtime
+checks once per run, by drawing a known 0.3 and reading it back, and every
+read says whether it was `exact`; the page warns when it was not. JSON has no
+NaN or infinities, so those components travel as the strings `NaN`,
+`Infinity` and `-Infinity`.
+
+## Hot restart
+
+A hot restart starts a new isolate: the app forgets the heatmap, select mode
+and overrides, but the probe stays compiled into it.
+
+- DevTools sets the main isolate to null while it restarts, and replaces its
+  "service extension available" notifiers. `DevToolsDebuggedApp` follows the
+  main isolate and listens to the current notifier, so the page sees the
+  runtime go and come back. Meanwhile it says the app is restarting.
+- When the runtime is back, the controller sends the overrides again, turns
+  select mode back on, shows the heatmap and reads the pixel again. The
+  probe it last loaded is still the app's, so nothing is written or
+  reloaded. `tool/e2e_heatmap.py` checks the app's side of this.
 
 ## How a uniform gets overridden
 
@@ -328,6 +345,12 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 ## Status
 
+Released as 1.0.0 (protocol version 5). Verified on macOS with Impeller;
+iOS, Android, Windows and Linux are untested so far. CI
+(`.github/workflows/ci.yml`) runs the analyzer, the formatter, every test,
+the extension build and the publish dry runs on macOS; `tool/e2e_heatmap.py`
+needs a desktop session and runs by hand.
+
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
@@ -362,7 +385,9 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 **Next:**
 - Check the page in a real DevTools in a browser, including the composite
-  picker and the Pixel section. The example app's gallery has a shader for
+  picker, the Pixel section and the Uniforms tab.
+- Try iOS, Android (Vulkan and OpenGL ES), Windows and Linux. Pixel reads
+  say when a renderer rounds them to 8 bits. The example app's gallery has a shader for
   each: `lights.frag` (structs in an array), `checkerboard.frag` (a matrix,
   an `ivec2`, a `bool`) and `ripple.frag` (`out` parameters, a sampler).
 - After the MVP: iteration and call selectors for values in loops and

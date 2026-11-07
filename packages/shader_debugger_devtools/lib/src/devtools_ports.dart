@@ -11,9 +11,29 @@ import 'package:shader_debugger_core/protocol.dart';
 import 'ports.dart';
 
 final class DevToolsDebuggedApp implements DebuggedApp {
+  DevToolsDebuggedApp() {
+    serviceManager.isolateManager.mainIsolate.addListener(_followRuntime);
+    _followRuntime();
+  }
+
+  final _runtime = ValueNotifier(false);
+  ValueListenable<bool>? _available;
+
+  /// DevTools drops its "extension available" notifiers when the main
+  /// isolate goes, as in a hot restart, and makes new ones for the next
+  /// isolate: follow the current one, or a restart would never be noticed.
+  void _followRuntime() {
+    _available?.removeListener(_updateRuntime);
+    _available = serviceManager.serviceExtensionManager.hasServiceExtension(
+      ServiceExtensions.getInfo,
+    )..addListener(_updateRuntime);
+    _updateRuntime();
+  }
+
+  void _updateRuntime() => _runtime.value = _available?.value ?? false;
+
   @override
-  ValueListenable<bool> get hasRuntime => serviceManager.serviceExtensionManager
-      .hasServiceExtension(ServiceExtensions.getInfo);
+  ValueListenable<bool> get hasRuntime => _runtime;
 
   Future<Map<String, Object?>> _call(
     String method, [

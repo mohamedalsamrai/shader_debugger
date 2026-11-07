@@ -114,7 +114,7 @@ void main() {
         'ext.shader_debugger.getInfo',
         {},
       );
-      expect(info['protocolVersion'], 4);
+      expect(info['protocolVersion'], 5);
       expect(info['probeAsset'], goldenProbe);
       expect(info['shaders'], [gradient]);
       expect(info['heatmap'], {
@@ -187,6 +187,8 @@ void main() {
         instance: instance,
       );
       expect(reading.rejection, isNull);
+      // Skia ignores the 32-bit float target and says so.
+      expect(reading.exact, isFalse);
       return reading.value!;
     }
 
@@ -242,6 +244,7 @@ void main() {
         {'asset': gradient, 'stamp': '$goldenStamp', 'x': '0.5', 'y': '0.5'},
       );
       expect(answer['applied'], isTrue);
+      expect(answer['exact'], isFalse);
       expect((answer['value']! as List)[0], closeTo(dAt(0, 0), tolerance));
       expect(
         debugger.handleServiceExtension('ext.shader_debugger.readPixel', {

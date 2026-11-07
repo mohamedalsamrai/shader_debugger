@@ -123,6 +123,9 @@ class FakeApp implements DebuggedApp {
     0,
     1,
   ];
+
+  /// What readPixel says about precision.
+  bool exactPixels = true;
   final pixelCalls =
       <({String asset, int stamp, double x, double y, int? instance})>[];
 
@@ -149,6 +152,17 @@ class FakeApp implements DebuggedApp {
   /// A click in the app: reported while select mode is on.
   void click(PixelPick pick) {
     if (selecting != null) _picks.add(pick);
+  }
+
+  /// A hot restart: the runtime goes away and comes back, having forgotten
+  /// the heatmap, select mode and overrides. The probe stays compiled.
+  Future<void> restart() async {
+    runtime.value = false;
+    shown = null;
+    selecting = null;
+    overrides.clear();
+    await Future<void>.delayed(Duration.zero);
+    runtime.value = true;
   }
 
   /// The overlay's Done button.
@@ -223,6 +237,7 @@ class FakeApp implements DebuggedApp {
       applied: answer.applied,
       reason: answer.reason,
       value: answer.applied ? pixelValue(x, y) : null,
+      exact: exactPixels,
     );
   }
 

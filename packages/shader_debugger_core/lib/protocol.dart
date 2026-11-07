@@ -8,7 +8,7 @@ library;
 
 /// The version of the app ↔ extension protocol. Bump it when a service
 /// extension or a probe uniform changes meaning.
-const int protocolVersion = 4;
+const int protocolVersion = 5;
 
 /// Where the probe shader lives in the app, as an asset key. The app must
 /// register it under `flutter: shaders:` in its pubspec.
@@ -80,9 +80,12 @@ abstract final class ServiceExtensions {
   /// coordinates (what `FlutterFragCoord()` returns there). Optionally
   /// `instance`, from a [ServiceEvents.pixelPicked] event, picks which
   /// `DebugShader` for the asset supplies the uniforms; by default, the first
-  /// one. Answers `{"applied": true, "value": [x, y, z, w]}`, or `applied`
-  /// false with a `reason`, as [showHeatmap] does. Components that are not
-  /// finite come as the strings `NaN`, `Infinity` and `-Infinity`.
+  /// one. Answers `{"applied": true, "value": [x, y, z, w], "exact": bool}`,
+  /// or `applied` false with a `reason`, as [showHeatmap] does. Components
+  /// that are not finite come as the strings `NaN`, `Infinity` and
+  /// `-Infinity`. `exact` is false when the renderer cannot draw into a
+  /// 32-bit float image (Skia, the engine `flutter test` uses): the value is
+  /// then rounded to 8 bits per channel and clamped to 0..1.
   static const String readPixel = '$prefix.readPixel';
 
   /// Turns pixel select mode on or off, like the widget inspector's select
