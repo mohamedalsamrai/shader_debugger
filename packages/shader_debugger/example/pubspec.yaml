@@ -1,0 +1,30 @@
+name: shader_debugger_example
+description: Demo app for the Flutter shader debugger.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Depending on the runtime package is what makes DevTools offer the
+  # Shader Debugger extension for this app.
+  shader_debugger:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  shaders:
+    - shaders/gradient.frag
+    # The DevTools extension overwrites this file with an instrumented copy of
+    # the shader being debugged, then hot reloads. It has to be registered
+    # here once so the Flutter tool compiles it and swaps it in on reload.
+    - shaders/_debug/probe.frag

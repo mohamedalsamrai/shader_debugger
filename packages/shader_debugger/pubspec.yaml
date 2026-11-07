@@ -1,0 +1,24 @@
+name: shader_debugger
+description: >-
+  Debug-only runtime for the Flutter shader debugger. It records fragment
+  shader uniforms and draws probe shaders for the Shader Debugger DevTools
+  extension.
+version: 0.0.1
+# Remove before the first release.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  # Needs the name-based uniform API (FragmentShader.getUniformFloat) and
+  # FragmentProgram hot-reload rebinding. Only tested on 3.47 so far.
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,15 @@
+# Pub workspace for the Flutter shader debugger.
+#
+# Run `flutter pub get` once at the repo root. Every package listed below
+# resolves against the single pubspec.lock that lives next to this file.
+name: shader_debugger_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - packages/shader_debugger_core
+  - packages/shader_debugger
+  - packages/shader_debugger/example
+  - packages/shader_debugger_devtools

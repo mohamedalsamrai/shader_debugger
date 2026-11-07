@@ -1,0 +1,574 @@
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "_fe_analyzer_shared",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/_fe_analyzer_shared-103.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "analyzer",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/analyzer-13.3.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "args",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/args-2.7.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "async",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/async-2.13.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "boolean_selector",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/boolean_selector-2.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "characters",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/characters-1.4.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "cli_config",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/cli_config-0.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "cli_util",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/cli_util-0.6.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "clock",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/clock-1.1.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "collection",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/collection-1.19.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "convert",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/convert-3.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "coverage",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/coverage-1.16.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "crypto",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/crypto-3.0.8",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "dap",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/dap-1.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.19"
+    },
+    {
+      "name": "dart_service_protocol_shared",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/dart_service_protocol_shared-0.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "dds_service_extensions",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/dds_service_extensions-2.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "devtools_app_shared",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/devtools_app_shared-0.5.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "devtools_extensions",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/devtools_extensions-0.5.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "devtools_shared",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/devtools_shared-13.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "dtd",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/dtd-4.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "extension_discovery",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/extension_discovery-2.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "fake_async",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/fake_async-1.3.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "ffi",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/ffi-2.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "file",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/file-7.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "flutter",
+      "rootUri": "file:///Users/maciraq/develop/flutter/packages/flutter",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "flutter_lints",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/flutter_lints-6.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "flutter_test",
+      "rootUri": "file:///Users/maciraq/develop/flutter/packages/flutter_test",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "flutter_web_plugins",
+      "rootUri": "file:///Users/maciraq/develop/flutter/packages/flutter_web_plugins",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "frontend_server_client",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/frontend_server_client-4.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "glob",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/glob-2.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "http",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/http-1.6.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "http_multi_server",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/http_multi_server-3.2.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "http_parser",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/http_parser-4.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "io",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/io-1.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "json_rpc_2",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/json_rpc_2-4.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "leak_tracker",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/leak_tracker-11.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "leak_tracker_flutter_testing",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/leak_tracker_flutter_testing-3.0.10",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "leak_tracker_testing",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/leak_tracker_testing-3.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "lints",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/lints-6.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "logging",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/logging-1.3.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "matcher",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/matcher-0.12.20",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "material_color_utilities",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/material_color_utilities-0.13.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "meta",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/meta-1.19.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "mime",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/mime-2.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "node_preamble",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/node_preamble-2.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "package_config",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/package_config-2.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "path",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/path-1.9.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "plugin_platform_interface",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/plugin_platform_interface-2.1.8",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "pointer_interceptor",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pointer_interceptor-0.10.1+3",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "pointer_interceptor_ios",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pointer_interceptor_ios-0.10.1+1",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "pointer_interceptor_platform_interface",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pointer_interceptor_platform_interface-0.10.0+1",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "pointer_interceptor_web",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pointer_interceptor_web-0.10.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "pool",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pool-1.5.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "pub_semver",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/pub_semver-2.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "shelf",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/shelf-1.4.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "shelf_packages_handler",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/shelf_packages_handler-3.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
+      "name": "shelf_static",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/shelf_static-1.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "shelf_web_socket",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/shelf_web_socket-3.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "sky_engine",
+      "rootUri": "file:///Users/maciraq/develop/flutter/bin/cache/pkg/sky_engine",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "source_map_stack_trace",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/source_map_stack_trace-2.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "source_maps",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/source_maps-0.10.14",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "source_span",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/source_span-1.10.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "sse",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/sse-4.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "stack_trace",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/stack_trace-1.12.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "stream_channel",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/stream_channel-2.1.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "string_scanner",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/string_scanner-1.4.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "term_glyph",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/term_glyph-1.2.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "test",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/test-1.31.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "test_api",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/test_api-0.7.12",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "test_core",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/test_core-0.6.18",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "typed_data",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/typed_data-1.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "unified_analytics",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/unified_analytics-8.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "url_launcher",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher-6.3.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "url_launcher_android",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_android-6.3.33",
+      "packageUri": "lib/",
+      "languageVersion": "3.12"
+    },
+    {
+      "name": "url_launcher_ios",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_ios-6.4.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "url_launcher_linux",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_linux-3.2.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "url_launcher_macos",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_macos-3.2.6",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "url_launcher_platform_interface",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_platform_interface-2.3.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "url_launcher_web",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_web-2.4.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "url_launcher_windows",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/url_launcher_windows-3.1.6",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "vector_math",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/vector_math-2.4.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "vm_service",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/vm_service-15.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "watcher",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/watcher-1.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "web",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/web-1.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "web_socket",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/web_socket-1.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "web_socket_channel",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/web_socket_channel-3.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "webkit_inspection_protocol",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/webkit_inspection_protocol-1.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "yaml",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/yaml-3.1.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "yaml_edit",
+      "rootUri": "file:///Users/maciraq/.pub-cache/hosted/pub.dev/yaml_edit-2.2.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "shader_debugger_workspace",
+      "rootUri": "../",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "shader_debugger_core",
+      "rootUri": "../packages/shader_debugger_core",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "shader_debugger",
+      "rootUri": "../packages/shader_debugger",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "shader_debugger_example",
+      "rootUri": "../packages/shader_debugger/example",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "shader_debugger_devtools",
+      "rootUri": "../packages/shader_debugger_devtools",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    }
+  ],
+  "generator": "pub",
+  "generatorVersion": "3.13.7",
+  "flutterRoot": "file:///Users/maciraq/develop/flutter",
+  "flutterVersion": "3.47.8",
+  "pubCache": "file:///Users/maciraq/.pub-cache"
+}
