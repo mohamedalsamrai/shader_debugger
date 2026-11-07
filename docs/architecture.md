@@ -145,8 +145,16 @@ problems become diagnostics.
      - **Writes:** variables declared with an initializer, assignment targets
        (through fields and indices), `++`/`--`, and arguments passed to `out`
        or `inout` parameters, including built-ins such as `modf`.
+     - **Written parts:** for a variable written only in part, which part,
+       as far as constant indices and fields go: `[1].color` for
+       `lights[1].color.r = 1.0;`. The part stops before an index that is
+       not a constant (`w[i]`), and at the first part the probe can draw
+       whole, so swizzles are left out.
      - **In scope:** the variables visible where the value is captured.
-     - **Default pick:** the first variable the statement writes.
+     - **Default pick:** the first variable the statement writes. For a
+       composite, `defaultPath()` goes to the part written, then on to the
+       first drawable part (`GlslType.firstDrawablePath`): column 0,
+       element 0, or the first field with one.
    - A statement that starts or ends inside a macro expansion is not
      pickable, and statements from included files are not listed.
 
@@ -168,6 +176,11 @@ vec3 col = mix(uA.rgb, uB.rgb, d);       // writes: col · also in scope: uv, d
 | matrix | pick a column |
 | array | pick an element |
 | struct | pick a field |
+
+The picker lists the choices at each step (`GlslType.selectorChoices`), down
+to a drawable part: `lights` → `[1]` → `.color`. Fields that lead to nothing
+drawable, such as samplers, are left out. An array whose length the analyzer
+cannot fold takes any index, typed by hand.
 
 ### Decisions
 
@@ -253,6 +266,9 @@ with Impeller (`tool/e2e_heatmap.py`).
   shader, pick a line and value, write the probe, hot reload, then
   `showHeatmap` with retries. The range changes without a reload, and picking
   another value while a heatmap is shown updates it.
+- Composite values: the page shows a dropdown per step (column, element,
+  field), starting at the part the statement writes. Changing a step while a
+  heatmap is shown updates it too.
 - When DTD may not write the probe (no workspace root covers it), the page
   offers the probe to copy, then checks once the user has pasted it and hot
   reloaded.
@@ -262,8 +278,9 @@ with Impeller (`tool/e2e_heatmap.py`).
   session from `tool/devtools_session.py`.
 
 **Next:**
-- Check the page in a real DevTools in a browser.
-- Composite values: pick a matrix column, array element or struct field.
+- Check the page in a real DevTools in a browser, including the composite
+  picker. No example shader uses composites yet; a second one in the example
+  app would show them off.
 - M3, the pixel inspector.
 
 ## Open questions

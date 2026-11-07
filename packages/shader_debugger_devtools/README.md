@@ -5,7 +5,8 @@ a tab. It is not published on its own. Its compiled output ships inside
 `package:shader_debugger` under `extension/devtools/build/`.
 
 **Status: heatmap mode (M2).** Pick a shader the app draws through
-`DebugShader`, click a line, choose a value, and press Show heatmap. The
+`DebugShader`, click a line, choose a value (for a matrix, array or struct,
+also the column, element or field), and press Show heatmap. The
 extension writes the probe through the Dart Tooling Daemon, hot reloads, and
 has the app draw it; the range can change without a reload. The pixel
 inspector arrives in M3.
