@@ -8,25 +8,9 @@ import 'package:shader_debugger_core/shader_debugger_core.dart';
 import 'package:test/test.dart';
 
 import '../support/fixtures.dart';
-
-/// The target flags the Flutter tool passes for macOS and for Android
-/// (`build_system/tools/shader_compiler.dart`).
-const targets = {
-  'macOS': ['--sksl', '--runtime-stage-metal'],
-  'Android': [
-    '--sksl',
-    '--runtime-stage-gles',
-    '--runtime-stage-gles3',
-    '--runtime-stage-vulkan',
-  ],
-};
+import '../support/impellerc.dart';
 
 void main() {
-  final impellerc = _findImpellerc();
-  final skip = impellerc == null
-      ? 'impellerc not found next to the flutter on PATH'
-      : false;
-
   final probes = <String, Probe Function()>{
     'gradient: d (scalar)': () {
       final f = GradientFixture();
@@ -95,22 +79,15 @@ void main() {
   tearDownAll(() => temp.deleteSync(recursive: true));
 
   for (final MapEntry(key: name, value: build) in probes.entries) {
-    for (final MapEntry(key: target, value: flags) in targets.entries) {
-      test('$name compiles for $target', skip: skip, () {
+    for (final target in impellercTargets.keys) {
+      test('$name compiles for $target', skip: skipWithoutImpellerc, () async {
         final probe = build();
-        final input = File('${temp.path}/probe_${probe.stamp}.frag')
-          ..writeAsStringSync(probe.source);
-        final out = '${temp.path}/probe_${probe.stamp}_$target';
-        final result = Process.runSync(impellerc!.path, [
-          ...flags,
-          '--iplr',
-          '--sl=$out.iplr',
-          '--spirv=$out.spirv',
-          '--input=${input.path}',
-          '--input-type=frag',
-          '--include=${temp.path}',
-          '--include=${impellerc.parent.path}/shader_lib',
-        ]);
+        final result = await compileShader(
+          probe.source,
+          directory: temp,
+          name: 'probe_${probe.stamp}',
+          target: target,
+        );
         expect(
           result.exitCode,
           0,
@@ -121,25 +98,4 @@ void main() {
       });
     }
   }
-}
-
-File? _findImpellerc() {
-  final which = Process.runSync(Platform.isWindows ? 'where' : 'which', [
-    'flutter',
-  ]);
-  if (which.exitCode != 0) return null;
-  final flutter = File((which.stdout as String).trim().split('\n').first)
-      .resolveSymbolicLinksSync();
-  final engine = Directory(
-    '${File(flutter).parent.path}/cache/artifacts/engine',
-  );
-  final host = Platform.isMacOS
-      ? 'darwin-x64'
-      : Platform.isWindows
-      ? 'windows-x64'
-      : 'linux-x64';
-  final impellerc = File(
-    '${engine.path}/$host/impellerc${Platform.isWindows ? '.exe' : ''}',
-  );
-  return impellerc.existsSync() ? impellerc : null;
 }
