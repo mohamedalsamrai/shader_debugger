@@ -45,6 +45,7 @@ final class Preprocessor {
   }
 
   final SourceFile source;
+
   /// Reads included files other than [runtimeEffectInclude].
   final IncludeResolver? resolveInclude;
   final _macros = <String, _Macro>{};
