@@ -1,0 +1,4 @@
+# build/ is git-ignored, but the published package must include it: it is the
+# compiled DevTools extension. Build it first with
+# `dart run devtools_extensions build_and_copy` (see the repo README).
+!build

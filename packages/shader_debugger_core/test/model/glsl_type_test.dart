@@ -48,7 +48,11 @@ void main() {
 
   group('visualization (design doc §5)', () {
     test('scalars are one channel; int and bool too, after a cast', () {
-      for (final type in [GlslType.floatType, GlslType.intType, GlslType.boolType]) {
+      for (final type in [
+        GlslType.floatType,
+        GlslType.intType,
+        GlslType.boolType,
+      ]) {
         expect(type.visualization, Visualization.scalar, reason: '$type');
         expect(type.selectorKind, isNull, reason: '$type');
       }
@@ -63,11 +67,16 @@ void main() {
     });
 
     test('a matrix needs a column, an array an element, a struct a field', () {
-      final light = StructType('Light', const [StructField('radius', GlslType.floatType)]);
+      final light = StructType('Light', const [
+        StructField('radius', GlslType.floatType),
+      ]);
       expect(GlslType.mat3.visualization, isNull);
       expect(GlslType.mat3.selectorKind, SelectorKind.column);
       expect(const ArrayType(GlslType.floatType, 4).visualization, isNull);
-      expect(const ArrayType(GlslType.floatType, 4).selectorKind, SelectorKind.element);
+      expect(
+        const ArrayType(GlslType.floatType, 4).selectorKind,
+        SelectorKind.element,
+      );
       expect(light.visualization, isNull);
       expect(light.selectorKind, SelectorKind.field);
     });
@@ -86,9 +95,18 @@ void main() {
     });
 
     test('casts int, uint and bool scalars to float', () {
-      expect(GlslType.intType.widenToVec4('i'), 'vec4(float(i), 0.0, 0.0, 1.0)');
-      expect(GlslType.uintType.widenToVec4('u'), 'vec4(float(u), 0.0, 0.0, 1.0)');
-      expect(GlslType.boolType.widenToVec4('b'), 'vec4(float(b), 0.0, 0.0, 1.0)');
+      expect(
+        GlslType.intType.widenToVec4('i'),
+        'vec4(float(i), 0.0, 0.0, 1.0)',
+      );
+      expect(
+        GlslType.uintType.widenToVec4('u'),
+        'vec4(float(u), 0.0, 0.0, 1.0)',
+      );
+      expect(
+        GlslType.boolType.widenToVec4('b'),
+        'vec4(float(b), 0.0, 0.0, 1.0)',
+      );
     });
 
     test('pads float vectors with zeros and an alpha of 1', () {
@@ -128,7 +146,10 @@ void main() {
       const sized = ArrayType(GlslType.floatType, 4);
       expect(sized.select(const IndexSelector(3)), GlslType.floatType);
       expect(sized.select(const IndexSelector(4)), isNull);
-      expect(const ArrayType(GlslType.vec2).select(const IndexSelector(99)), GlslType.vec2);
+      expect(
+        const ArrayType(GlslType.vec2).select(const IndexSelector(99)),
+        GlslType.vec2,
+      );
     });
 
     test('picks struct fields', () {
@@ -147,7 +168,10 @@ void main() {
       final lights = ArrayType(light, 2);
       const path = [IndexSelector(1), FieldSelector('color')];
       expect(lights.selectPath(path), GlslType.vec4);
-      expect(path.fold('uLights', (expression, s) => s.applyTo(expression)), 'uLights[1].color');
+      expect(
+        path.fold('uLights', (expression, s) => s.applyTo(expression)),
+        'uLights[1].color',
+      );
       expect(lights.selectPath(const [FieldSelector('color')]), isNull);
       expect(lights.selectPath(const []), same(lights));
     });
@@ -156,17 +180,32 @@ void main() {
   group('names and equality', () {
     test('array names list the outermost dimension first', () {
       expect(const ArrayType(GlslType.vec2, 3).name, 'vec2[3]');
-      expect(const ArrayType(ArrayType(GlslType.floatType, 3), 2).name, 'float[2][3]');
+      expect(
+        const ArrayType(ArrayType(GlslType.floatType, 3), 2).name,
+        'float[2][3]',
+      );
       expect(const ArrayType(GlslType.floatType).name, 'float[]');
     });
 
     test('array types compare by element type and length', () {
       // Built at runtime, so these are not canonicalized const instances.
       final length = int.parse('3');
-      expect(ArrayType(GlslType.vec2, length), const ArrayType(GlslType.vec2, 3));
-      expect(ArrayType(GlslType.vec2, length).hashCode, const ArrayType(GlslType.vec2, 3).hashCode);
-      expect(ArrayType(GlslType.vec2, length), isNot(const ArrayType(GlslType.vec2, 4)));
-      expect(ArrayType(GlslType.vec2, length), isNot(const ArrayType(GlslType.vec3, 3)));
+      expect(
+        ArrayType(GlslType.vec2, length),
+        const ArrayType(GlslType.vec2, 3),
+      );
+      expect(
+        ArrayType(GlslType.vec2, length).hashCode,
+        const ArrayType(GlslType.vec2, 3).hashCode,
+      );
+      expect(
+        ArrayType(GlslType.vec2, length),
+        isNot(const ArrayType(GlslType.vec2, 4)),
+      );
+      expect(
+        ArrayType(GlslType.vec2, length),
+        isNot(const ArrayType(GlslType.vec3, 3)),
+      );
     });
 
     test('struct types compare by identity', () {

@@ -11,7 +11,11 @@ void main() {
   });
 
   test('assigns ids in declaration order', () {
-    final uA = global.declareVariable('uA', GlslType.vec4, kind: VariableKind.uniform);
+    final uA = global.declareVariable(
+      'uA',
+      GlslType.vec4,
+      kind: VariableKind.uniform,
+    );
     final main = global.declareFunction('main', GlslType.voidType);
     final x = global
         .openFunction(main)
@@ -55,8 +59,16 @@ void main() {
 
   test('lists uniforms and functions in declaration order', () {
     global.declareVariable('uSize', GlslType.vec2, kind: VariableKind.uniform);
-    global.declareVariable('fragColor', GlslType.vec4, kind: VariableKind.output);
-    global.declareVariable('uImage', GlslType.sampler2D, kind: VariableKind.uniform);
+    global.declareVariable(
+      'fragColor',
+      GlslType.vec4,
+      kind: VariableKind.output,
+    );
+    global.declareVariable(
+      'uImage',
+      GlslType.sampler2D,
+      kind: VariableKind.uniform,
+    );
     final helper = global.declareFunction('helper', GlslType.floatType);
     final main = global.declareFunction('main', GlslType.voidType);
 
@@ -66,10 +78,20 @@ void main() {
 
   group('lookup', () {
     test('finds the nearest declaration; inner ones hide outer ones', () {
-      final outer = global.declareVariable('x', GlslType.floatType, kind: VariableKind.global);
-      final body = global.openFunction(global.declareFunction('main', GlslType.voidType));
+      final outer = global.declareVariable(
+        'x',
+        GlslType.floatType,
+        kind: VariableKind.global,
+      );
+      final body = global.openFunction(
+        global.declareFunction('main', GlslType.voidType),
+      );
       final block = body.openBlock();
-      final inner = block.declareVariable('x', GlslType.vec2, kind: VariableKind.local);
+      final inner = block.declareVariable(
+        'x',
+        GlslType.vec2,
+        kind: VariableKind.local,
+      );
 
       expect(block.lookup('x'), same(inner));
       expect(body.lookup('x'), same(outer));
@@ -97,9 +119,17 @@ void main() {
         visibleFrom: 60,
       );
 
-      expect(body.lookup('x', at: 55), same(outer), reason: 'inside the initializer');
+      expect(
+        body.lookup('x', at: 55),
+        same(outer),
+        reason: 'inside the initializer',
+      );
       expect(body.lookup('x', at: 60), same(inner));
-      expect(body.lookup('x', at: 5), isNull, reason: 'before both declarations');
+      expect(
+        body.lookup('x', at: 5),
+        isNull,
+        reason: 'before both declarations',
+      );
       expect(body.lookup('x'), same(inner), reason: 'no offset: end of scope');
     });
 
@@ -118,9 +148,18 @@ void main() {
     });
 
     test('does not see a global declared after the point of use', () {
-      final main = global.declareFunction('main', GlslType.voidType, visibleFrom: 10);
+      final main = global.declareFunction(
+        'main',
+        GlslType.voidType,
+        visibleFrom: 10,
+      );
       final body = global.openFunction(main);
-      global.declareVariable('late', GlslType.floatType, kind: VariableKind.global, visibleFrom: 200);
+      global.declareVariable(
+        'late',
+        GlslType.floatType,
+        kind: VariableKind.global,
+        visibleFrom: 200,
+      );
 
       expect(body.lookup('late', at: 50), isNull);
       expect(body.lookup('late', at: 250), isNotNull);
@@ -145,8 +184,14 @@ void main() {
 
     test('returns nothing when a nearer variable hides the function', () {
       global.declareFunction('shade', GlslType.floatType);
-      final body = global.openFunction(global.declareFunction('main', GlslType.voidType));
-      body.declareVariable('shade', GlslType.floatType, kind: VariableKind.local);
+      final body = global.openFunction(
+        global.declareFunction('main', GlslType.voidType),
+      );
+      body.declareVariable(
+        'shade',
+        GlslType.floatType,
+        kind: VariableKind.local,
+      );
 
       expect(body.lookupFunctions('shade'), isEmpty);
       expect(global.lookupFunctions('shade'), hasLength(1));
@@ -155,22 +200,57 @@ void main() {
 
   group('visibleVariables', () {
     test('lists the innermost scope first and drops hidden variables', () {
-      final uSize = global.declareVariable('uSize', GlslType.vec2, kind: VariableKind.uniform, visibleFrom: 0);
-      global.declareVariable('t', GlslType.floatType, kind: VariableKind.global, visibleFrom: 0);
-      final main = global.declareFunction('main', GlslType.voidType, visibleFrom: 0);
+      final uSize = global.declareVariable(
+        'uSize',
+        GlslType.vec2,
+        kind: VariableKind.uniform,
+        visibleFrom: 0,
+      );
+      global.declareVariable(
+        't',
+        GlslType.floatType,
+        kind: VariableKind.global,
+        visibleFrom: 0,
+      );
+      final main = global.declareFunction(
+        'main',
+        GlslType.voidType,
+        visibleFrom: 0,
+      );
       final body = global.openFunction(main);
-      final uv = body.declareVariable('uv', GlslType.vec2, kind: VariableKind.local, visibleFrom: 10);
+      final uv = body.declareVariable(
+        'uv',
+        GlslType.vec2,
+        kind: VariableKind.local,
+        visibleFrom: 10,
+      );
       final block = body.openBlock();
-      final t = block.declareVariable('t', GlslType.intType, kind: VariableKind.local, visibleFrom: 20);
-      final later = block.declareVariable('later', GlslType.floatType, kind: VariableKind.local, visibleFrom: 40);
+      final t = block.declareVariable(
+        't',
+        GlslType.intType,
+        kind: VariableKind.local,
+        visibleFrom: 20,
+      );
+      final later = block.declareVariable(
+        'later',
+        GlslType.floatType,
+        kind: VariableKind.local,
+        visibleFrom: 40,
+      );
 
       expect(block.visibleVariables(at: 30), [t, uv, uSize]);
       expect(block.visibleVariables(), [t, later, uv, uSize]);
     });
 
     test('a nearer struct or function name also hides an outer variable', () {
-      global.declareVariable('Light', GlslType.floatType, kind: VariableKind.global);
-      final body = global.openFunction(global.declareFunction('main', GlslType.voidType));
+      global.declareVariable(
+        'Light',
+        GlslType.floatType,
+        kind: VariableKind.global,
+      );
+      final body = global.openFunction(
+        global.declareFunction('main', GlslType.voidType),
+      );
       body.declareStruct(StructType('Light', const []));
 
       expect(body.visibleVariables(), isEmpty);
@@ -179,25 +259,75 @@ void main() {
 
   group('declaration rules', () {
     test('uniforms, outputs and globals belong to the global scope', () {
-      final body = global.openFunction(global.declareFunction('main', GlslType.voidType));
-      for (final kind in [VariableKind.uniform, VariableKind.output, VariableKind.global]) {
-        expect(() => body.declareVariable('v', GlslType.floatType, kind: kind), throwsStateError);
+      final body = global.openFunction(
+        global.declareFunction('main', GlslType.voidType),
+      );
+      for (final kind in [
+        VariableKind.uniform,
+        VariableKind.output,
+        VariableKind.global,
+      ]) {
+        expect(
+          () => body.declareVariable('v', GlslType.floatType, kind: kind),
+          throwsStateError,
+        );
         expect(kind.isGlobal, isTrue);
       }
     });
 
-    test('parameters belong to a function scope, locals to functions and blocks', () {
-      final body = global.openFunction(global.declareFunction('main', GlslType.voidType));
-      final block = body.openBlock();
-      expect(() => global.declareVariable('p', GlslType.floatType, kind: VariableKind.parameter), throwsStateError);
-      expect(() => block.declareVariable('p', GlslType.floatType, kind: VariableKind.parameter), throwsStateError);
-      expect(() => global.declareVariable('l', GlslType.floatType, kind: VariableKind.local), throwsStateError);
-      expect(block.declareVariable('l', GlslType.floatType, kind: VariableKind.local).kind, VariableKind.local);
-    });
+    test(
+      'parameters belong to a function scope, locals to functions and blocks',
+      () {
+        final body = global.openFunction(
+          global.declareFunction('main', GlslType.voidType),
+        );
+        final block = body.openBlock();
+        expect(
+          () => global.declareVariable(
+            'p',
+            GlslType.floatType,
+            kind: VariableKind.parameter,
+          ),
+          throwsStateError,
+        );
+        expect(
+          () => block.declareVariable(
+            'p',
+            GlslType.floatType,
+            kind: VariableKind.parameter,
+          ),
+          throwsStateError,
+        );
+        expect(
+          () => global.declareVariable(
+            'l',
+            GlslType.floatType,
+            kind: VariableKind.local,
+          ),
+          throwsStateError,
+        );
+        expect(
+          block
+              .declareVariable(
+                'l',
+                GlslType.floatType,
+                kind: VariableKind.local,
+              )
+              .kind,
+          VariableKind.local,
+        );
+      },
+    );
 
     test('parameters default to in; other variables take no direction', () {
-      final body = global.openFunction(global.declareFunction('f', GlslType.voidType));
-      final p = body.declareVariable('p', GlslType.floatType, kind: VariableKind.parameter);
+      final body = global.openFunction(
+        global.declareFunction('f', GlslType.voidType),
+      );
+      final p = body.declareVariable(
+        'p',
+        GlslType.floatType,
+        kind: VariableKind.parameter,
+      );
       final q = body.declareVariable(
         'q',
         GlslType.floatType,
@@ -207,7 +337,12 @@ void main() {
 
       expect(p.direction, ParameterDirection.input);
       expect(q.direction?.writesArgument, isTrue);
-      expect(body.declareVariable('l', GlslType.floatType, kind: VariableKind.local).direction, isNull);
+      expect(
+        body
+            .declareVariable('l', GlslType.floatType, kind: VariableKind.local)
+            .direction,
+        isNull,
+      );
       expect(
         () => body.declareVariable(
           'r',
@@ -223,10 +358,16 @@ void main() {
       final main = global.declareFunction('main', GlslType.voidType);
       final body = global.openFunction(main);
       expect(() => global.openBlock(), throwsStateError);
-      expect(() => body.declareFunction('g', GlslType.voidType), throwsStateError);
+      expect(
+        () => body.declareFunction('g', GlslType.voidType),
+        throwsStateError,
+      );
       expect(() => body.openFunction(main), throwsStateError);
       expect(() => global.openFunction(main), throwsStateError);
-      expect(() => SymbolTable().global.openFunction(main), throwsArgumentError);
+      expect(
+        () => SymbolTable().global.openFunction(main),
+        throwsArgumentError,
+      );
     });
   });
 
@@ -236,7 +377,11 @@ void main() {
       GlslType.floatType,
       parameters: const [
         FunctionParameter(GlslType.vec2, name: 'uv'),
-        FunctionParameter(GlslType.floatType, name: 'd', direction: ParameterDirection.inputOutput),
+        FunctionParameter(
+          GlslType.floatType,
+          name: 'd',
+          direction: ParameterDirection.inputOutput,
+        ),
         FunctionParameter(GlslType.vec3, isConst: true),
       ],
     );

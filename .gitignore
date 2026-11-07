@@ -1,0 +1,15 @@
+# Dart and Flutter tooling
+.dart_tool/
+build/
+coverage/
+.flutter-plugins-dependencies
+
+# IDEs and OS
+.idea/
+*.iml
+.DS_Store
+
+# The compiled DevTools extension (matched by build/ above too). It is
+# produced by `dart run devtools_extensions build_and_copy` before publishing,
+# and extension/devtools/.pubignore keeps it in the published package.
+packages/shader_debugger/extension/devtools/build/

@@ -37,7 +37,8 @@ final class SymbolTable {
       .where((variable) => variable.kind == VariableKind.uniform);
 
   /// The functions, in declaration order.
-  Iterable<FunctionSymbol> get functions => _symbols.whereType<FunctionSymbol>();
+  Iterable<FunctionSymbol> get functions =>
+      _symbols.whereType<FunctionSymbol>();
 }
 
 /// The kind of a [Scope].
@@ -85,7 +86,8 @@ final class Scope {
   late final List<GlslSymbol> symbols = UnmodifiableListView(_symbols);
 
   /// The variables declared directly in this scope, in declaration order.
-  Iterable<VariableSymbol> get variables => _symbols.whereType<VariableSymbol>();
+  Iterable<VariableSymbol> get variables =>
+      _symbols.whereType<VariableSymbol>();
 
   /// How many scopes enclose this one. The global scope has depth 0.
   int get depth {
@@ -105,7 +107,11 @@ final class Scope {
       throw StateError('Functions can only be defined at global scope.');
     }
     if (!identical(function.scope, this)) {
-      throw ArgumentError.value(function, 'function', 'Not declared in this scope');
+      throw ArgumentError.value(
+        function,
+        'function',
+        'Not declared in this scope',
+      );
     }
     if (function._body != null) {
       throw StateError('${function.name} already has a body.');
@@ -163,7 +169,11 @@ final class Scope {
       );
     }
     if (direction != null && kind != VariableKind.parameter) {
-      throw ArgumentError.value(direction, 'direction', 'Only parameters have a direction');
+      throw ArgumentError.value(
+        direction,
+        'direction',
+        'Only parameters have a direction',
+      );
     }
     return _add(
       VariableSymbol._(
@@ -209,16 +219,19 @@ final class Scope {
   }
 
   /// Declares a struct type in this scope.
-  StructSymbol declareStruct(StructType type, {FileSpan? span, int? visibleFrom}) =>
-      _add(
-        StructSymbol._(
-          id: table._symbols.length,
-          scope: this,
-          span: span,
-          visibleFrom: visibleFrom,
-          type: type,
-        ),
-      );
+  StructSymbol declareStruct(
+    StructType type, {
+    FileSpan? span,
+    int? visibleFrom,
+  }) => _add(
+    StructSymbol._(
+      id: table._symbols.length,
+      scope: this,
+      span: span,
+      visibleFrom: visibleFrom,
+      type: type,
+    ),
+  );
 
   T _add<T extends GlslSymbol>(T symbol) {
     _symbols.add(symbol);
@@ -247,7 +260,10 @@ final class Scope {
   List<FunctionSymbol> lookupFunctions(String name, {int? at}) {
     final nearest = lookup(name, at: at);
     if (nearest is! FunctionSymbol) return const [];
-    return nearest.scope._visibleNamed(name, at).whereType<FunctionSymbol>().toList();
+    return nearest.scope
+        ._visibleNamed(name, at)
+        .whereType<FunctionSymbol>()
+        .toList();
   }
 
   /// The variables visible at source offset [at]: innermost scope first, in
@@ -272,7 +288,9 @@ final class Scope {
   }
 
   Iterable<GlslSymbol> _visibleNamed(String name, int? at) =>
-      (_byName[name] ?? const <GlslSymbol>[]).where((symbol) => symbol.isVisibleAt(at));
+      (_byName[name] ?? const <GlslSymbol>[]).where(
+        (symbol) => symbol.isVisibleAt(at),
+      );
 
   @override
   String toString() => switch (kind) {

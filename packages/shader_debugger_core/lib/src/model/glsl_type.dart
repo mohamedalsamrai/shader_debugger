@@ -85,7 +85,8 @@ final class IndexSelector extends Selector {
   String applyTo(String expression) => '$expression[$index]';
 
   @override
-  bool operator ==(Object other) => other is IndexSelector && other.index == index;
+  bool operator ==(Object other) =>
+      other is IndexSelector && other.index == index;
 
   @override
   int get hashCode => Object.hash(IndexSelector, index);
@@ -105,7 +106,8 @@ final class FieldSelector extends Selector {
   String applyTo(String expression) => '$expression.$name';
 
   @override
-  bool operator ==(Object other) => other is FieldSelector && other.name == name;
+  bool operator ==(Object other) =>
+      other is FieldSelector && other.name == name;
 
   @override
   int get hashCode => Object.hash(FieldSelector, name);
@@ -293,7 +295,9 @@ final class VectorType extends GlslType {
 
   @override
   String widenToVec4(String expression) {
-    final value = kind == ScalarKind.float ? expression : 'vec$size($expression)';
+    final value = kind == ScalarKind.float
+        ? expression
+        : 'vec$size($expression)';
     return switch (size) {
       2 => 'vec4($value, 0.0, 1.0)',
       3 => 'vec4($value, 1.0)',

@@ -50,7 +50,9 @@ final class ShaderAnalysis {
        ),
        diagnostics = List.unmodifiable(diagnostics) {
     assert(
-      this.statements.every((statement) => identical(statement.span.file, source)),
+      this.statements.every(
+        (statement) => identical(statement.span.file, source),
+      ),
       'Every statement must point into the analyzed source file.',
     );
   }

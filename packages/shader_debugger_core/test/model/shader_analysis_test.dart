@@ -1,8 +1,9 @@
 import 'package:shader_debugger_core/shader_debugger_core.dart';
 import 'package:test/test.dart';
 
-/// The design doc's example shader (§4), completed into a full file. It is
-/// the same as `example/shaders/gradient.frag` in package:shader_debugger.
+/// The design doc's example shader (§4), completed into a full file. It
+/// matches `example/shaders/gradient.frag` in package:shader_debugger, minus
+/// that file's header comment.
 const _gradient = '''
 #version 460 core
 
@@ -68,7 +69,8 @@ class _Builder {
     String statement,
   ) {
     final declaration = span(statement);
-    final nameStart = declaration.start.offset + statement.indexOf(' $name') + 1;
+    final nameStart =
+        declaration.start.offset + statement.indexOf(' $name') + 1;
     return scope.declareVariable(
       name,
       type,
@@ -130,34 +132,89 @@ void main() {
       global.declareFunction(
         'FlutterFragCoord',
         GlslType.vec2,
-        visibleFrom: b.span('#include <flutter/runtime_effect.glsl>').end.offset,
+        visibleFrom: b
+            .span('#include <flutter/runtime_effect.glsl>')
+            .end
+            .offset,
       );
-      final uSize = b.declare(global, 'uSize', GlslType.vec2, VariableKind.uniform, 'uniform vec2 uSize;');
-      final uA = b.declare(global, 'uA', GlslType.vec4, VariableKind.uniform, 'uniform vec4 uA;');
-      final uB = b.declare(global, 'uB', GlslType.vec4, VariableKind.uniform, 'uniform vec4 uB;');
-      final fragColor = b.declare(global, 'fragColor', GlslType.vec4, VariableKind.output, 'out vec4 fragColor;');
-      expect([uSize, uA, uB, fragColor], hasLength(4));
+      b.declare(
+        global,
+        'uSize',
+        GlslType.vec2,
+        VariableKind.uniform,
+        'uniform vec2 uSize;',
+      );
+      b.declare(
+        global,
+        'uA',
+        GlslType.vec4,
+        VariableKind.uniform,
+        'uniform vec4 uA;',
+      );
+      b.declare(
+        global,
+        'uB',
+        GlslType.vec4,
+        VariableKind.uniform,
+        'uniform vec4 uB;',
+      );
+      final fragColor = b.declare(
+        global,
+        'fragColor',
+        GlslType.vec4,
+        VariableKind.output,
+        'out vec4 fragColor;',
+      );
 
       final main = b.defineVoidFunction('main');
       const uvLine = 'vec2 uv = FlutterFragCoord().xy / uSize;';
       const dLine = 'float d = length(uv - 0.5);';
       const colLine = 'vec3 col = mix(uA.rgb, uB.rgb, d);';
-      final uv = b.declare(main, 'uv', GlslType.vec2, VariableKind.local, uvLine);
+      final uv = b.declare(
+        main,
+        'uv',
+        GlslType.vec2,
+        VariableKind.local,
+        uvLine,
+      );
       b.statement(StatementKind.declaration, uvLine, main, writes: [uv]);
-      final d = b.declare(main, 'd', GlslType.floatType, VariableKind.local, dLine);
+      final d = b.declare(
+        main,
+        'd',
+        GlslType.floatType,
+        VariableKind.local,
+        dLine,
+      );
       b.statement(StatementKind.declaration, dLine, main, writes: [d]);
-      final col = b.declare(main, 'col', GlslType.vec3, VariableKind.local, colLine);
+      final col = b.declare(
+        main,
+        'col',
+        GlslType.vec3,
+        VariableKind.local,
+        colLine,
+      );
       b.statement(StatementKind.declaration, colLine, main, writes: [col]);
-      b.statement(StatementKind.expression, 'fragColor = vec4(col, 1.0);', main, writes: [fragColor]);
+      b.statement(
+        StatementKind.expression,
+        'fragColor = vec4(col, 1.0);',
+        main,
+        writes: [fragColor],
+      );
 
       analysis = b.build();
     });
 
-    List<String> names(Iterable<GlslSymbol> symbols) => [for (final s in symbols) s.name];
+    List<String> names(Iterable<GlslSymbol> symbols) => [
+      for (final s in symbols) s.name,
+    ];
 
     test('lists the uniforms in declaration order, with their types', () {
       expect(names(analysis.uniforms), ['uSize', 'uA', 'uB']);
-      expect(analysis.uniforms.map((u) => u.type), [GlslType.vec2, GlslType.vec4, GlslType.vec4]);
+      expect(analysis.uniforms.map((u) => u.type), [
+        GlslType.vec2,
+        GlslType.vec4,
+        GlslType.vec4,
+      ]);
     });
 
     test('finds main', () {
@@ -166,7 +223,9 @@ void main() {
     });
 
     test('maps a line to the statement that starts on it', () {
-      final statements = analysis.statementsOnLine(b.lineOf('float d = length(uv - 0.5);'));
+      final statements = analysis.statementsOnLine(
+        b.lineOf('float d = length(uv - 0.5);'),
+      );
       expect(statements, hasLength(1));
       expect(names(statements.single.writes), ['d']);
       expect(statements.single.defaultPick?.name, 'd');
@@ -185,7 +244,9 @@ void main() {
     });
 
     test('writing the output picks it by default', () {
-      final statement = analysis.statementsOnLine(b.lineOf('fragColor = vec4(col, 1.0);')).single;
+      final statement = analysis
+          .statementsOnLine(b.lineOf('fragColor = vec4(col, 1.0);'))
+          .single;
       expect(statement.kind, StatementKind.expression);
       expect(statement.defaultPick?.name, 'fragColor');
       expect(statement.defaultPick?.kind, VariableKind.output);
@@ -193,7 +254,10 @@ void main() {
 
     test('lines without a statement have nothing to pick', () {
       expect(analysis.statementsOnLine(b.lineOf('void main() {')), isEmpty);
-      expect(analysis.statementsOnLine(b.lineOf('uniform vec2 uSize;')), isEmpty);
+      expect(
+        analysis.statementsOnLine(b.lineOf('uniform vec2 uSize;')),
+        isEmpty,
+      );
       expect(analysis.statementsOnLine(1), isEmpty, reason: 'blank line');
     });
 
@@ -212,18 +276,58 @@ void main() {
 
     setUp(() {
       b = _Builder(_branchy, 'branchy.frag');
-      fragColor = b.declare(b.table.global, 'fragColor', GlslType.vec4, VariableKind.output, 'out vec4 fragColor;');
+      fragColor = b.declare(
+        b.table.global,
+        'fragColor',
+        GlslType.vec4,
+        VariableKind.output,
+        'out vec4 fragColor;',
+      );
       final main = b.defineVoidFunction('main');
-      a = b.declare(main, 'a', GlslType.floatType, VariableKind.local, 'float a = 1.0;');
+      a = b.declare(
+        main,
+        'a',
+        GlslType.floatType,
+        VariableKind.local,
+        'float a = 1.0;',
+      );
       // Statements are added out of source order on purpose.
-      b.statement(StatementKind.declaration, 'float a = 1.0;', main, writes: [a]);
-      final ifSpan = b.span('if (a > 0.5) {\n    fragColor = vec4(a);\n    return;\n  }');
-      final block = main.openBlock(span: b.file.span(ifSpan.text.indexOf('{') + ifSpan.start.offset, ifSpan.end.offset));
-      final bVar = b.declare(main, 'b', GlslType.floatType, VariableKind.local, 'float b = a * 2.0;');
-      b.statement(StatementKind.declaration, 'float b = a * 2.0;', main, writes: [bVar]);
+      b.statement(
+        StatementKind.declaration,
+        'float a = 1.0;',
+        main,
+        writes: [a],
+      );
+      final ifSpan = b.span(
+        'if (a > 0.5) {\n    fragColor = vec4(a);\n    return;\n  }',
+      );
+      final block = main.openBlock(
+        span: b.file.span(
+          ifSpan.text.indexOf('{') + ifSpan.start.offset,
+          ifSpan.end.offset,
+        ),
+      );
+      final bVar = b.declare(
+        main,
+        'b',
+        GlslType.floatType,
+        VariableKind.local,
+        'float b = a * 2.0;',
+      );
+      b.statement(
+        StatementKind.declaration,
+        'float b = a * 2.0;',
+        main,
+        writes: [bVar],
+      );
       b.statement(StatementKind.expression, 'a += b;', main, writes: [a, a]);
       b.statement(StatementKind.jump, 'return;', block);
-      b.statement(StatementKind.expression, 'fragColor = vec4(a);', block, writes: [fragColor]);
+      b.statement(
+        StatementKind.expression,
+        'fragColor = vec4(a);',
+        block,
+        writes: [fragColor],
+      );
       b.statement(StatementKind.control, ifSpan.text, main);
       analysis = b.build();
     });
@@ -247,12 +351,17 @@ void main() {
       expect(ret.defaultPick, isNull);
     });
 
-    test('a control statement offers its scope but picks nothing by default', () {
-      final ifStatement = analysis.statementsOnLine(b.lineOf('if (a > 0.5) {')).single;
-      expect(ifStatement.kind, StatementKind.control);
-      expect(ifStatement.defaultPick, isNull);
-      expect(ifStatement.inScope, contains(a));
-    });
+    test(
+      'a control statement offers its scope but picks nothing by default',
+      () {
+        final ifStatement = analysis
+            .statementsOnLine(b.lineOf('if (a > 0.5) {'))
+            .single;
+        expect(ifStatement.kind, StatementKind.control);
+        expect(ifStatement.defaultPick, isNull);
+        expect(ifStatement.inScope, contains(a));
+      },
+    );
 
     test('writes are de-duplicated', () {
       final statement = analysis.statementsOnLine(b.lineOf('a += b;')).single;
@@ -263,7 +372,9 @@ void main() {
     test('a statement the parser does not understand cannot be picked', () {
       final file = SourceFile.fromString('void main() { WEIRD_MACRO; }');
       final table = SymbolTable();
-      final main = table.global.openFunction(table.global.declareFunction('main', GlslType.voidType));
+      final main = table.global.openFunction(
+        table.global.declareFunction('main', GlslType.voidType),
+      );
       final statement = StatementInfo(
         id: 0,
         kind: StatementKind.expression,
@@ -276,12 +387,19 @@ void main() {
         symbols: table,
         statements: [statement],
         diagnostics: [
-          Diagnostic(DiagnosticSeverity.warning, 'Picking disabled: macro expansion', span: statement.span),
+          Diagnostic(
+            DiagnosticSeverity.warning,
+            'Picking disabled: macro expansion',
+            span: statement.span,
+          ),
         ],
       );
 
       expect(statement.isPickable, isFalse);
-      expect(analysis.diagnostics.single.toString(), 'shader:1:15: warning: Picking disabled: macro expansion');
+      expect(
+        analysis.diagnostics.single.toString(),
+        'shader:1:15: warning: Picking disabled: macro expansion',
+      );
     });
   });
 }
