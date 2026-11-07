@@ -13,3 +13,5 @@ coverage/
 # produced by `dart run devtools_extensions build_and_copy` before publishing,
 # and extension/devtools/.pubignore keeps it in the published package.
 packages/shader_debugger/extension/devtools/build/
+# Widget Preview related
+.widget_preview/

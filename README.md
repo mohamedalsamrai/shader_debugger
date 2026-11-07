@@ -49,3 +49,7 @@ flutter run -d macos
 2. **M2:** heatmap mode end to end.
 3. **M3:** pixel inspector.
 4. **M4:** auto-generated sliders for uniforms.
+
+## License
+
+[MIT](LICENSE)
