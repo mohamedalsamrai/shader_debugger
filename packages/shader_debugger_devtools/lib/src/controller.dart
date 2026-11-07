@@ -1,7 +1,11 @@
-/// The debugger's state and the heatmap flow (docs/architecture.md, "How a
+/// The debugger's state and its two flows (docs/architecture.md, "How a
 /// heatmap gets on screen"): analyze the shader, let the user pick a value,
-/// write the probe, hot reload, and ask the app to show it.
+/// load a probe for it into the app, then have the app draw it as a heatmap
+/// or read it at a pixel.
 library;
+
+import 'dart:async';
+import 'dart:ui' show Offset, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:shader_debugger_core/shader_debugger_core.dart';
@@ -21,16 +25,46 @@ enum AppConnection {
 enum HeatmapStatus {
   off,
 
-  /// Writing the probe file.
+  /// Writing the probe and hot reloading the app so it compiles it.
   writing,
-
-  /// Hot reloading the app so it compiles the probe.
-  reloading,
 
   /// Asking the app to draw the probe, until it has loaded it.
   loading,
   shown,
   failed,
+}
+
+/// Where reading a pixel stands.
+enum PixelStatus {
+  off,
+
+  /// Waiting for a tap in the app.
+  picking,
+
+  /// Loading the probe and reading the value.
+  reading,
+  shown,
+  failed,
+}
+
+/// The captured value at a pixel, as the app read it.
+@immutable
+final class PixelValue {
+  const PixelValue({
+    required this.probe,
+    required this.coord,
+    required this.components,
+  });
+
+  /// The probe that captured it: what was captured, of which type, where.
+  final Probe probe;
+
+  /// Where, in the shader's coordinates.
+  final Offset coord;
+
+  /// x, y, z and w; only the first `probe.visualization.componentCount`
+  /// carry the value.
+  final List<double> components;
 }
 
 class ShaderDebuggerController extends ChangeNotifier {
@@ -119,6 +153,7 @@ class ShaderDebuggerController extends ChangeNotifier {
   /// [probeFile], hot reload, and call [checkManualProbe].
   Probe? get manualProbe => _manualProbe;
   Probe? _manualProbe;
+  _Selection? _manualSelection;
 
   double get min => _min;
   double _min = 0;
@@ -126,11 +161,50 @@ class ShaderDebuggerController extends ChangeNotifier {
   double get max => _max;
   double _max = 1;
 
+  PixelStatus get pixelStatus => _pixelStatus;
+  PixelStatus _pixelStatus = PixelStatus.off;
+
+  /// Progress or failure details for [pixelStatus].
+  String? get pixelMessage => _pixelMessage;
+  String? _pixelMessage;
+
+  /// The point to read, in the shader's coordinates.
+  Offset? get pixel => _pixel;
+  Offset? _pixel;
+
+  /// The size of the area the shader was painted in, when [pixel] was
+  /// picked in the app.
+  Size? get pixelArea => _pixelArea;
+  Size? _pixelArea;
+
+  /// Which `DebugShader` [pixel] was picked on; null for the first one.
+  int? _pixelInstance;
+
+  /// The value last read at [pixel].
+  PixelValue? get pixelValue => _pixelValue;
+  PixelValue? _pixelValue;
+
+  StreamSubscription<PixelPick>? _picks;
+
+  /// The probe the app has loaded, as far as the debugger knows, and the
+  /// selection it captures. The heatmap and pixel reads share it.
+  Probe? _loadedProbe;
+  _Selection? _loadedSelection;
+
+  /// The probe file as it was before the debugger first wrote it.
+  String? _originalProbeSource;
+
+  /// Loads run one at a time, so their writes and reloads do not interleave.
+  Future<void> _loadQueue = Future.value();
+  final _loads = <_Selection, Future<_Load>>{};
+
   int _lastStamp = 0;
 
-  /// Bumped by every user action that changes the heatmap, so an older
-  /// operation still in flight can tell it has been superseded.
+  /// Bumped by every user action that changes the heatmap, or the pixel
+  /// reading, so an older operation still in flight can tell it has been
+  /// superseded.
   int _operation = 0;
+  int _pixelOperation = 0;
   bool _disposed = false;
 
   /// The probe's file, once the app's directory is known.
@@ -141,17 +215,19 @@ class ShaderDebuggerController extends ChangeNotifier {
   }
 
   /// Whether a heatmap can be requested now.
-  bool get canShow =>
+  bool get canShow => _canLoad && !isBusy;
+
+  /// Whether a pixel can be read or picked now.
+  bool get canReadPixel => _canLoad && _pixelStatus != PixelStatus.reading;
+
+  bool get _canLoad =>
       _connection == AppConnection.ready &&
       _appRoot != null &&
       _statement != null &&
-      _variable != null &&
-      !isBusy;
+      _variable != null;
 
   bool get isBusy => switch (_status) {
-    HeatmapStatus.writing ||
-    HeatmapStatus.reloading ||
-    HeatmapStatus.loading => true,
+    HeatmapStatus.writing || HeatmapStatus.loading => true,
     _ => false,
   };
 
@@ -176,6 +252,7 @@ class ShaderDebuggerController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     app.hasRuntime.removeListener(_runtimeChanged);
+    unawaited(_picks?.cancel());
     super.dispose();
   }
 
@@ -196,7 +273,7 @@ class ShaderDebuggerController extends ChangeNotifier {
         _fail(
           'The app speaks protocol version ${info.protocolVersion}, but this '
           'extension speaks version $protocolVersion. Use the same version of '
-          'package:shader_debugger in the app.',
+          'package:shader_debugger in the app, and hot restart it.',
         );
         return;
       }
@@ -249,6 +326,7 @@ class ShaderDebuggerController extends ChangeNotifier {
     _statement = null;
     _variable = null;
     _path = const [];
+    await _forgetPixel();
     _notify();
     await reloadSource();
   }
@@ -286,8 +364,8 @@ class ShaderDebuggerController extends ChangeNotifier {
   }
 
   /// Selects the statement on 0-based [line], and the value it writes: the
-  /// part it writes, for a composite. While a heatmap is shown and [live] is
-  /// true, shows the new value right away.
+  /// part it writes, for a composite. While a heatmap or a pixel value is
+  /// shown and [live] is true, shows the new value right away.
   void selectLine(int line, {bool live = true}) {
     final candidates = [
       for (final statement
@@ -307,7 +385,7 @@ class ShaderDebuggerController extends ChangeNotifier {
         ? const []
         : List.unmodifiable(statement.defaultPath(variable)!);
     _notify();
-    if (live) _showIfLive();
+    if (live) _updateLive();
   }
 
   /// Selects which in-scope [variable] to show; for a composite, the part
@@ -320,12 +398,12 @@ class ShaderDebuggerController extends ChangeNotifier {
     _variable = variable;
     _path = List.unmodifiable(statement.defaultPath(variable)!);
     _notify();
-    _showIfLive();
+    _updateLive();
   }
 
   /// Changes the step of [path] at [depth] to [selector], then goes on to
-  /// the first drawable part below it. While a heatmap is shown, shows the
-  /// new part right away.
+  /// the first drawable part below it. While a heatmap or a pixel value is
+  /// shown, shows the new part right away.
   void selectStep(int depth, Selector selector) {
     final variable = _variable;
     if (variable == null || depth < 0 || depth >= _path.length) return;
@@ -336,117 +414,54 @@ class ShaderDebuggerController extends ChangeNotifier {
     if (listEquals(path, _path)) return;
     _path = List.unmodifiable(path);
     _notify();
-    _showIfLive();
+    _updateLive();
   }
 
-  void _showIfLive() {
+  void _updateLive() {
     if (_status == HeatmapStatus.shown && canShow) showHeatmap();
+    if (_pixelStatus == PixelStatus.shown && _pixel != null) readPixel();
   }
 
-  /// Generates the probe for the selection, writes it, hot reloads, and has
-  /// the app draw it.
+  // Heatmap.
+
+  /// Loads the probe for the selection into the app, and has the app draw
+  /// it in place of the shader.
   Future<void> showHeatmap() async {
-    final analysis = _analysis;
-    final statement = _statement;
-    final variable = _variable;
+    final selection = _selection;
     final asset = _asset;
-    final file = probeFile;
-    if (analysis == null ||
-        statement == null ||
-        variable == null ||
-        asset == null ||
-        file == null) {
-      return;
-    }
+    if (selection == null || asset == null || probeFile == null) return;
     final operation = ++_operation;
-    final Probe probe;
-    try {
-      probe = instrument(
-        analysis,
-        CaptureRequest(statement: statement, variable: variable, path: _path),
-        stamp: _nextStamp(),
-      );
-    } on InstrumentationException catch (error) {
-      _setStatus(HeatmapStatus.failed, error.message);
-      return;
+    if (!_isLoaded(selection)) {
+      _setStatus(HeatmapStatus.writing, 'Writing the probe and hot reloading…');
     }
-    _manualProbe = null;
-
-    _setStatus(HeatmapStatus.writing, 'Writing the probe…');
-    try {
-      await workspace.write(file, probe.source);
-    } on WorkspaceException catch (error) {
-      if (operation != _operation) return;
-      _manualProbe = probe;
-      _setStatus(
-        HeatmapStatus.failed,
-        '${_describe(error, file, writing: true)} You can paste the probe into '
-        'that file yourself, hot reload, and press Check.',
-      );
-      return;
-    }
+    final load = await _load(selection);
     if (operation != _operation) return;
-
-    _setStatus(HeatmapStatus.reloading, 'Hot reloading…');
-    try {
-      await app.hotReload();
-    } on Object {
-      if (operation != _operation) return;
+    final probe = load.probe;
+    if (probe == null) {
+      // Do not leave an older value on screen under a failure.
       await _hideQuietly();
-      _setStatus(
-        HeatmapStatus.failed,
-        'Hot reload failed. If the probe does not compile, the Flutter tool '
-        'prints why; please report it, with the shader.',
-      );
+      if (operation != _operation) return;
+      _setStatus(HeatmapStatus.failed, load.error);
       return;
     }
-    if (operation != _operation) return;
-    await _waitForProbe(probe, asset, operation);
-  }
-
-  /// After the user pasted [manualProbe] and hot reloaded: has the app draw it.
-  Future<void> checkManualProbe() async {
-    final probe = _manualProbe;
-    final asset = _asset;
-    if (probe == null || asset == null) return;
-    await _waitForProbe(probe, asset, ++_operation);
-  }
-
-  Future<void> _waitForProbe(Probe probe, String asset, int operation) async {
     _setStatus(HeatmapStatus.loading, 'Waiting for the app to load the probe…');
-    for (var attempt = 1; attempt <= retries; attempt++) {
-      final HeatmapAnswer answer;
-      try {
-        answer = await app.showHeatmap(
-          asset: asset,
-          stamp: probe.stamp,
-          min: _min,
-          max: _max,
-        );
-      } on Object catch (error) {
-        if (operation != _operation) return;
-        _setStatus(HeatmapStatus.failed, 'The app did not answer: $error');
-        return;
-      }
-      if (operation != _operation) return;
-      if (answer.applied) {
-        _shownProbe = probe;
-        _manualProbe = null;
-        _setStatus(HeatmapStatus.shown, null);
-        return;
-      }
-      if (answer.reason != 'probeNotLoaded') {
-        _setStatus(HeatmapStatus.failed, _rejection(answer.reason, asset));
-        return;
-      }
-      if (attempt < retries) await Future<void>.delayed(retryDelay);
-      if (operation != _operation) return;
-    }
-    _setStatus(
-      HeatmapStatus.failed,
-      'The app is still running an older probe. If the hot reload printed '
-      'errors, they explain why.',
+    final answer = await _askUntilLoaded(
+      () => app.showHeatmap(
+        asset: asset,
+        stamp: probe.stamp,
+        min: _min,
+        max: _max,
+      ),
+      () => operation != _operation,
     );
+    if (operation != _operation) return;
+    switch (answer) {
+      case _Failure(:final message):
+        _setStatus(HeatmapStatus.failed, message);
+      default:
+        _shownProbe = probe;
+        _setStatus(HeatmapStatus.shown, null);
+    }
   }
 
   /// Sets the value range the colormap spans. While a heatmap is shown, the
@@ -480,6 +495,7 @@ class ShaderDebuggerController extends ChangeNotifier {
   Future<void> hideHeatmap() async {
     ++_operation;
     _manualProbe = null;
+    _manualSelection = null;
     await _hideQuietly();
     _setStatus(HeatmapStatus.off, null);
   }
@@ -491,6 +507,266 @@ class ShaderDebuggerController extends ChangeNotifier {
     } on Object {
       // The app may be gone; nothing is shown then either.
     }
+  }
+
+  // Pixel.
+
+  /// Has the app report the next tap on the shader, then reads the value
+  /// there. The tap also reaches the app.
+  Future<void> pickPixel() async {
+    final asset = _asset;
+    if (asset == null || _connection != AppConnection.ready) return;
+    final operation = ++_pixelOperation;
+    await _picks?.cancel();
+    _picks = app.pixelPicks.listen((pick) {
+      if (pick.asset != asset || operation != _pixelOperation) return;
+      unawaited(_picks?.cancel());
+      _picks = null;
+      if (!pick.hit) {
+        _setPixel(
+          PixelStatus.failed,
+          'That tap was not on $asset. Pick again, on the shader.',
+        );
+        return;
+      }
+      _pixel = Offset(pick.x!, pick.y!);
+      _pixelInstance = pick.instance;
+      final width = pick.width;
+      final height = pick.height;
+      _pixelArea = width == null || height == null ? null : Size(width, height);
+      readPixel();
+    });
+    _setPixel(PixelStatus.picking, 'Click the shader in the app…');
+    try {
+      await app.pickPixel(asset);
+    } on Object catch (error) {
+      if (operation != _pixelOperation) return;
+      await _picks?.cancel();
+      _picks = null;
+      _setPixel(PixelStatus.failed, 'The app did not answer: $error');
+    }
+  }
+
+  /// Stops waiting for a tap.
+  Future<void> cancelPick() async {
+    if (_pixelStatus != PixelStatus.picking) return;
+    ++_pixelOperation;
+    await _picks?.cancel();
+    _picks = null;
+    _setPixel(_pixelValue == null ? PixelStatus.off : PixelStatus.shown, null);
+    try {
+      await app.cancelPick();
+    } on Object {
+      // The app may be gone.
+    }
+  }
+
+  /// Reads the value at ([x], [y]), typed in the shader's coordinates.
+  Future<void> setPixel(double x, double y) {
+    _pixel = Offset(x, y);
+    return readPixel();
+  }
+
+  /// Loads the probe for the selection into the app, and reads the value at
+  /// [pixel].
+  Future<void> readPixel() async {
+    final selection = _selection;
+    final asset = _asset;
+    final coord = _pixel;
+    if (selection == null ||
+        asset == null ||
+        coord == null ||
+        probeFile == null) {
+      return;
+    }
+    final operation = ++_pixelOperation;
+    await _picks?.cancel();
+    _picks = null;
+    _setPixel(
+      PixelStatus.reading,
+      _isLoaded(selection)
+          ? 'Reading…'
+          : 'Writing the probe and hot reloading…',
+    );
+    final load = await _load(selection);
+    if (operation != _pixelOperation) return;
+    final probe = load.probe;
+    if (probe == null) {
+      _setPixel(PixelStatus.failed, load.error);
+      return;
+    }
+    final answer = await _askUntilLoaded(
+      () => app.readPixel(
+        asset: asset,
+        stamp: probe.stamp,
+        x: coord.dx,
+        y: coord.dy,
+        instance: _pixelInstance,
+      ),
+      () => operation != _pixelOperation,
+    );
+    if (operation != _pixelOperation) return;
+    switch (answer) {
+      case PixelAnswer(applied: true, :final value?):
+        _pixelValue = PixelValue(probe: probe, coord: coord, components: value);
+        _setPixel(PixelStatus.shown, null);
+      case _Failure(:final message):
+        _setPixel(PixelStatus.failed, message);
+      default:
+        _setPixel(PixelStatus.failed, 'The app answered without a value.');
+    }
+  }
+
+  Future<void> _forgetPixel() async {
+    if (_pixelStatus == PixelStatus.picking) await cancelPick();
+    ++_pixelOperation;
+    _pixel = null;
+    _pixelArea = null;
+    _pixelInstance = null;
+    _pixelValue = null;
+    _pixelStatus = PixelStatus.off;
+    _pixelMessage = null;
+  }
+
+  // Loading probes.
+
+  /// After the user pasted [manualProbe] and hot reloaded: takes it as
+  /// loaded, and retries what needed it.
+  Future<void> checkManualProbe() async {
+    final probe = _manualProbe;
+    final selection = _manualSelection;
+    if (probe == null || selection == null) return;
+    _loadedProbe = probe;
+    _loadedSelection = selection;
+    _manualProbe = null;
+    _manualSelection = null;
+    await Future.wait([
+      if (_status == HeatmapStatus.failed) showHeatmap(),
+      if (_pixelStatus == PixelStatus.failed && _pixel != null) readPixel(),
+    ]);
+  }
+
+  _Selection? get _selection {
+    final analysis = _analysis;
+    final statement = _statement;
+    final variable = _variable;
+    if (!_canLoad || analysis == null) return null;
+    return _Selection(analysis, statement!, variable!, _path);
+  }
+
+  bool _isLoaded(_Selection selection) =>
+      _loadedProbe != null && _loadedSelection == selection;
+
+  /// The probe for [selection], loaded into the app: the one it already has,
+  /// or a new one, written and hot reloaded. Callers asking for the same
+  /// selection at the same time share one load.
+  Future<_Load> _load(_Selection selection) {
+    final loaded = _loadedProbe;
+    if (loaded != null && _loadedSelection == selection) {
+      return Future.value(_Load(loaded));
+    }
+    return _loads[selection] ??= () async {
+      final previous = _loadQueue;
+      final done = Completer<void>();
+      _loadQueue = done.future;
+      try {
+        await previous;
+        return await _writeAndReload(selection);
+      } finally {
+        _loads.remove(selection);
+        done.complete();
+      }
+    }();
+  }
+
+  Future<_Load> _writeAndReload(_Selection selection) async {
+    final loaded = _loadedProbe;
+    if (loaded != null && _loadedSelection == selection) return _Load(loaded);
+    final file = probeFile!;
+    final Probe probe;
+    try {
+      probe = instrument(
+        selection.analysis,
+        CaptureRequest(
+          statement: selection.statement,
+          variable: selection.variable,
+          path: selection.path,
+        ),
+        stamp: _nextStamp(),
+      );
+    } on InstrumentationException catch (error) {
+      return _Load.failed(error.message);
+    }
+
+    _originalProbeSource ??= await _readOrNull(file);
+    try {
+      await workspace.write(file, probe.source);
+    } on WorkspaceException catch (error) {
+      _manualProbe = probe;
+      _manualSelection = selection;
+      return _Load.failed(
+        '${_describe(error, file, writing: true)} You can paste the probe into '
+        'that file yourself, hot reload, and press Check.',
+      );
+    }
+    try {
+      await app.hotReload();
+    } on Object {
+      // The app keeps the probe it had. Put that one back in the file, so
+      // the next hot reload, the developer's own included, does not fail
+      // on this one again.
+      final previous = _loadedProbe?.source ?? _originalProbeSource;
+      if (previous != null) {
+        try {
+          await workspace.write(file, previous);
+        } on WorkspaceException {
+          // Nothing more to do; the message below still applies.
+        }
+      }
+      return _Load.failed(
+        'Hot reload failed. If the probe does not compile, the Flutter tool '
+        'prints why; please report it, with the shader.',
+      );
+    }
+    _loadedProbe = probe;
+    _loadedSelection = selection;
+    return _Load(probe);
+  }
+
+  Future<String?> _readOrNull(Uri file) async {
+    try {
+      return await workspace.read(file);
+    } on WorkspaceException {
+      return null;
+    }
+  }
+
+  /// Calls [ask] while the app answers that it has not loaded the probe yet,
+  /// up to [retries] times. Returns the applied answer, or a [_Failure];
+  /// stops early once [superseded].
+  Future<Object> _askUntilLoaded(
+    Future<ProbeAnswer> Function() ask,
+    bool Function() superseded,
+  ) async {
+    final asset = _asset;
+    for (var attempt = 1; attempt <= retries; attempt++) {
+      final ProbeAnswer answer;
+      try {
+        answer = await ask();
+      } on Object catch (error) {
+        return _Failure('The app did not answer: $error');
+      }
+      if (answer.applied) return answer;
+      if (answer.reason != 'probeNotLoaded') {
+        return _Failure(_rejection(answer.reason, asset ?? ''));
+      }
+      if (attempt < retries) await Future<void>.delayed(retryDelay);
+      if (superseded()) return const _Failure('superseded');
+    }
+    return const _Failure(
+      'The app is still running an older probe. If the hot reload printed '
+      'errors, they explain why.',
+    );
   }
 
   int _nextStamp() {
@@ -534,7 +810,56 @@ class ShaderDebuggerController extends ChangeNotifier {
     _notify();
   }
 
+  void _setPixel(PixelStatus status, String? message) {
+    _pixelStatus = status;
+    _pixelMessage = message;
+    _notify();
+  }
+
   void _notify() {
     if (!_disposed) notifyListeners();
   }
+}
+
+/// What a probe captures. Equal selections share a loaded probe.
+@immutable
+final class _Selection {
+  const _Selection(this.analysis, this.statement, this.variable, this.path);
+
+  final ShaderAnalysis analysis;
+  final StatementInfo statement;
+  final VariableSymbol variable;
+  final List<Selector> path;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Selection &&
+      identical(other.analysis, analysis) &&
+      identical(other.statement, statement) &&
+      identical(other.variable, variable) &&
+      listEquals(other.path, path);
+
+  @override
+  int get hashCode => Object.hash(
+    identityHashCode(analysis),
+    identityHashCode(statement),
+    identityHashCode(variable),
+    Object.hashAll(path),
+  );
+}
+
+/// The result of loading a probe: the probe, or why it could not be loaded.
+final class _Load {
+  const _Load(Probe this.probe) : error = null;
+  const _Load.failed(String this.error) : probe = null;
+
+  final Probe? probe;
+  final String? error;
+}
+
+/// Why asking the app failed, as a message for the user.
+final class _Failure {
+  const _Failure(this.message);
+
+  final String message;
 }

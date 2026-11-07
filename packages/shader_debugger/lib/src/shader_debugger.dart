@@ -339,7 +339,11 @@ final class ShaderDebugger {
         return {
           'applied': reading.rejection == null,
           'reason': reading.rejection?.name,
-          'value': reading.value,
+          // JSON has no NaN or infinities; a shader value can be either.
+          'value': [
+            for (final component in reading.value ?? const <double>[])
+              component.isFinite ? component : '$component',
+          ],
         };
       case ServiceExtensions.pickPixel:
         final asset = parameters['asset'];

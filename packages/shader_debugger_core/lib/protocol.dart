@@ -80,7 +80,8 @@ abstract final class ServiceExtensions {
   /// `instance`, from a [ServiceEvents.pixelPicked] event, picks which
   /// `DebugShader` for the asset supplies the uniforms; by default, the first
   /// one. Answers `{"applied": true, "value": [x, y, z, w]}`, or `applied`
-  /// false with a `reason`, as [showHeatmap] does.
+  /// false with a `reason`, as [showHeatmap] does. Components that are not
+  /// finite come as the strings `NaN`, `Infinity` and `-Infinity`.
   static const String readPixel = '$prefix.readPixel';
 
   /// Waits for the next tap in the app, then posts a

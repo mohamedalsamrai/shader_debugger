@@ -311,6 +311,12 @@ class _SidePanel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _Status(controller: controller),
+        const Divider(height: 32),
+        _PixelPanel(controller: controller),
+        if (controller.manualProbe case final probe?) ...[
+          const SizedBox(height: 12),
+          _ManualProbe(controller: controller, probe: probe),
+        ],
         if (controller.analysis?.diagnostics case final diagnostics?
             when diagnostics.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -553,22 +559,12 @@ class _Status extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final message = controller.statusMessage ?? '';
     switch (controller.status) {
       case HeatmapStatus.off:
         return const SizedBox();
-      case HeatmapStatus.writing ||
-          HeatmapStatus.reloading ||
-          HeatmapStatus.loading:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const LinearProgressIndicator(),
-            const SizedBox(height: 4),
-            Text(message),
-          ],
-        );
+      case HeatmapStatus.writing || HeatmapStatus.loading:
+        return _Progress(message);
       case HeatmapStatus.shown:
         final probe = controller.shownProbe!;
         return Text(
@@ -577,36 +573,283 @@ class _Status extends StatelessWidget {
           '${probe.request.statement.line + 1}, in the app.',
         );
       case HeatmapStatus.failed:
-        final probe = controller.manualProbe;
+        return _Error(message);
+    }
+  }
+}
+
+/// The probe to paste by hand, when DevTools cannot write it.
+class _ManualProbe extends StatelessWidget {
+  const _ManualProbe({required this.controller, required this.probe});
+
+  final ShaderDebuggerController controller;
+  final Probe probe;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Probe to paste', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          controller.probeFile?.toFilePath() ?? '',
+          style: Theme.of(context).fixedFontStyle,
+        ),
+        Wrap(
+          children: [
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('Copy probe'),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: probe.source)),
+            ),
+            TextButton(
+              onPressed: controller.checkManualProbe,
+              child: const Text('Check'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Reads the selected value at one pixel: typed coordinates, or a tap in
+/// the app.
+class _PixelPanel extends StatefulWidget {
+  const _PixelPanel({required this.controller});
+
+  final ShaderDebuggerController controller;
+
+  @override
+  State<_PixelPanel> createState() => _PixelPanelState();
+}
+
+class _PixelPanelState extends State<_PixelPanel> {
+  final _x = TextEditingController();
+  final _y = TextEditingController();
+  Offset? _shown;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_sync);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_sync);
+    _x.dispose();
+    _y.dispose();
+    super.dispose();
+  }
+
+  /// Shows a picked pixel's coordinates in the fields.
+  void _sync() {
+    final pixel = widget.controller.pixel;
+    if (pixel == _shown) return;
+    _shown = pixel;
+    _x.text = pixel == null ? '' : _formatFloat(pixel.dx);
+    _y.text = pixel == null ? '' : _formatFloat(pixel.dy);
+  }
+
+  void _read() {
+    final x = double.tryParse(_x.text.trim());
+    final y = double.tryParse(_y.text.trim());
+    setState(
+      () => _error = x == null || y == null ? 'Enter two numbers.' : null,
+    );
+    if (x == null || y == null) return;
+    _shown = Offset(x, y);
+    widget.controller.setPixel(x, y);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final theme = Theme.of(context);
+    final picking = controller.pixelStatus == PixelStatus.picking;
+    Widget field(String label, TextEditingController text) => Expanded(
+      child: TextField(
+        controller: text,
+        decoration: InputDecoration(labelText: label, isDense: true),
+        keyboardType: const TextInputType.numberWithOptions(
+          signed: true,
+          decimal: true,
+        ),
+        onSubmitted: (_) => _read(),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Pixel', style: theme.textTheme.titleSmall),
+        Text(
+          'Coordinates are what FlutterFragCoord() returns there.',
+          style: theme.textTheme.bodySmall,
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            field('X', _x),
+            const SizedBox(width: 8),
+            field('Y', _y),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: controller.canReadPixel ? _read : null,
+              child: const Text('Read'),
+            ),
+          ],
+        ),
+        if (_error case final error?) _Error(error),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.ads_click, size: 18),
+              label: const Text('Pick in app'),
+              onPressed: controller.canReadPixel && !picking
+                  ? controller.pickPixel
+                  : null,
+            ),
+            if (picking)
+              TextButton(
+                onPressed: controller.cancelPick,
+                child: const Text('Cancel'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _PixelResult(controller: controller),
+      ],
+    );
+  }
+}
+
+class _PixelResult extends StatelessWidget {
+  const _PixelResult({required this.controller});
+
+  final ShaderDebuggerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final message = controller.pixelMessage ?? '';
+    switch (controller.pixelStatus) {
+      case PixelStatus.off:
+        return const SizedBox();
+      case PixelStatus.picking:
+        return Text('$message The click also reaches the app.');
+      case PixelStatus.reading:
+        return _Progress(message);
+      case PixelStatus.failed:
+        return _Error(message);
+      case PixelStatus.shown:
+        final value = controller.pixelValue!;
+        final probe = value.probe;
+        final count = probe.visualization.componentCount;
+        final area = controller.pixelArea;
+        final where = StringBuffer(
+          'at (${_formatFloat(value.coord.dx)}, '
+          '${_formatFloat(value.coord.dy)})',
+        );
+        if (area != null) {
+          where.write(
+            ' of ${_formatFloat(area.width)} × ${_formatFloat(area.height)}',
+          );
+        }
+        where.write(', after line ${probe.request.statement.line + 1}');
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(message, style: TextStyle(color: theme.colorScheme.error)),
-            if (probe != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                controller.probeFile?.toFilePath() ?? '',
-                style: theme.fixedFontStyle,
-              ),
-              Wrap(
+            Text(
+              '${probe.request.expression} · ${probe.valueType}',
+              style: theme.fixedFontStyle,
+            ),
+            Text('$where', style: theme.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            for (var i = 0; i < count; i++)
+              Row(
                 children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy probe'),
-                    onPressed: () =>
-                        Clipboard.setData(ClipboardData(text: probe.source)),
-                  ),
-                  TextButton(
-                    onPressed: controller.checkManualProbe,
-                    child: const Text('Check'),
+                  if (count > 1)
+                    SizedBox(
+                      width: 20,
+                      child: Text(
+                        'xyzw'[i],
+                        style: theme.fixedFontStyle.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  SelectableText(
+                    _formatComponent(value.components[i], probe.valueType),
+                    style: theme.fixedFontStyle,
                   ),
                 ],
               ),
-            ],
           ],
         );
     }
   }
+}
+
+/// A component as its type spells it: `true`, `3` or `0.530330062`.
+String _formatComponent(double value, GlslType type) {
+  final kind = switch (type) {
+    ScalarType(:final kind) || VectorType(:final kind) => kind,
+    _ => ScalarKind.float,
+  };
+  return switch (kind) {
+    ScalarKind.boolean => value != 0 ? 'true' : 'false',
+    ScalarKind.signedInt ||
+    ScalarKind.unsignedInt => value.isFinite ? '${value.round()}' : '$value',
+    ScalarKind.float => _formatFloat(value),
+  };
+}
+
+/// Nine significant digits, enough to tell any two 32-bit floats apart,
+/// without trailing zeros.
+String _formatFloat(double value) {
+  if (!value.isFinite) return '$value';
+  if (value == value.roundToDouble() && value.abs() < 1e9) {
+    return value.toStringAsFixed(1);
+  }
+  final text = value.toStringAsPrecision(9);
+  if (text.contains('e') || !text.contains('.')) return text;
+  return text.replaceFirst(RegExp(r'0+$'), '');
+}
+
+class _Progress extends StatelessWidget {
+  const _Progress(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const LinearProgressIndicator(),
+      const SizedBox(height: 4),
+      Text(message),
+    ],
+  );
+}
+
+class _Error extends StatelessWidget {
+  const _Error(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    message,
+    style: TextStyle(color: Theme.of(context).colorScheme.error),
+  );
 }
 
 class _Notice extends StatelessWidget {
