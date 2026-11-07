@@ -12,10 +12,13 @@ environment:
 dependencies:
   devtools_app_shared: ^0.5.1
   devtools_extensions: ^0.5.1
+  # File access through the Dart Tooling Daemon; its errors are json_rpc_2's.
+  dtd: ^4.0.0
   flutter:
     sdk: flutter
-  shader_debugger_core:
-    path: ../shader_debugger_core
+  json_rpc_2: ^4.1.0
+  # Resolves to the workspace package.
+  shader_debugger_core: ^0.0.1
 
 dev_dependencies:
   flutter_lints: ^6.0.0
