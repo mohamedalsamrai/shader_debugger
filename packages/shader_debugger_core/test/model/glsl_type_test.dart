@@ -177,6 +177,72 @@ void main() {
     });
   });
 
+  group('picker paths', () {
+    final withSampler = StructType('Tex', const [
+      StructField('image', GlslType.sampler2D),
+      StructField('scale', GlslType.vec2),
+    ]);
+    final onlySampler = StructType('Only', const [
+      StructField('image', GlslType.sampler2D),
+    ]);
+
+    test('drawable types need no step; samplers and void lead nowhere', () {
+      expect(GlslType.floatType.firstDrawablePath, isEmpty);
+      expect(GlslType.ivec3.firstDrawablePath, isEmpty);
+      expect(GlslType.sampler2D.firstDrawablePath, isNull);
+      expect(GlslType.voidType.firstDrawablePath, isNull);
+    });
+
+    test('composites start at their first drawable part', () {
+      expect(GlslType.mat3.firstDrawablePath, [const IndexSelector(0)]);
+      expect(ArrayType(withSampler, 3).firstDrawablePath, [
+        const IndexSelector(0),
+        const FieldSelector('scale'),
+      ]);
+      expect(const ArrayType(GlslType.mat2).firstDrawablePath, [
+        const IndexSelector(0),
+        const IndexSelector(0),
+      ]);
+      expect(onlySampler.firstDrawablePath, isNull);
+      expect(ArrayType(onlySampler, 2).firstDrawablePath, isNull);
+      expect(const ArrayType(GlslType.sampler2D, 2).firstDrawablePath, isNull);
+    });
+
+    test('every first path leads to a drawable type', () {
+      for (final type in [
+        GlslType.mat4x2,
+        ArrayType(withSampler, 3),
+        const ArrayType(ArrayType(GlslType.mat2, 2), 2),
+      ]) {
+        expect(
+          type.selectPath(type.firstDrawablePath!)?.visualization,
+          isNotNull,
+          reason: '$type',
+        );
+      }
+    });
+
+    test('choices list each column, element or drawable field', () {
+      expect(GlslType.mat3x2.selectorChoices, const [
+        IndexSelector(0),
+        IndexSelector(1),
+        IndexSelector(2),
+      ]);
+      expect(const ArrayType(GlslType.floatType, 2).selectorChoices, const [
+        IndexSelector(0),
+        IndexSelector(1),
+      ]);
+      expect(withSampler.selectorChoices, const [FieldSelector('scale')]);
+    });
+
+    test('no choices without a composite, or without a known length', () {
+      expect(GlslType.vec3.selectorChoices, isEmpty);
+      expect(GlslType.sampler2D.selectorChoices, isEmpty);
+      expect(const ArrayType(GlslType.floatType).selectorChoices, isEmpty);
+      expect(const ArrayType(GlslType.sampler2D, 2).selectorChoices, isEmpty);
+    });
+  });
+
   group('names and equality', () {
     test('array names list the outermost dimension first', () {
       expect(const ArrayType(GlslType.vec2, 3).name, 'vec2[3]');

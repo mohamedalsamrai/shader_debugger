@@ -36,6 +36,7 @@ String describeStatement(StatementInfo statement) {
       'scope=${statement.scope.kind.name}@${statement.scope.depth} '
       'function=${statement.function.name} writes=${names(statement.writes)} '
       'inScope=${names(statement.inScope)} pick=${statement.defaultPick?.name} '
+      'parts=${{for (final MapEntry(:key, :value) in statement.writtenParts.entries) key.name: value.join()}} '
       'pickable=${statement.isPickable}';
 }
 

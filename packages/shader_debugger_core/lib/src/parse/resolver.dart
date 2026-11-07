@@ -23,6 +23,10 @@ const _builtinOutArguments = {
   'imulExtended': [2, 3],
 };
 
+/// A variable a statement writes, and the part of it written (see
+/// [StatementInfo.writtenParts]); an empty part means the whole variable.
+typedef _Write = ({VariableSymbol variable, List<Selector> part});
+
 /// Resolves one parsed file. Create one per file.
 final class Resolver {
   Resolver(this.source, this.unit);
@@ -64,10 +68,7 @@ final class Resolver {
   /// Declares [declaration]'s names in [scope]. Returns what it writes:
   /// each variable with an initializer, then any writes inside that
   /// initializer.
-  List<VariableSymbol> _declaration(
-    VariableDeclaration declaration,
-    Scope scope,
-  ) {
+  List<_Write> _declaration(VariableDeclaration declaration, Scope scope) {
     final qualifiers = declaration.qualifiers;
     final base = _baseType(declaration.type, scope);
     if (base == null) return const [];
@@ -78,7 +79,7 @@ final class Resolver {
         : qualifiers.contains('out')
         ? VariableKind.output
         : VariableKind.global;
-    final writes = <VariableSymbol>[];
+    final writes = <_Write>[];
     for (final declarator in declaration.declarators) {
       final type = _withDimensions(base, [
         ...declarator.dimensions,
@@ -95,7 +96,7 @@ final class Resolver {
       final initializer = declarator.initializer;
       if (initializer == null) continue;
       writes
-        ..add(variable)
+        ..add((variable: variable, part: const []))
         ..addAll(_writes(initializer, scope));
       if (variable.isConst && type == GlslType.intType) {
         final value = _constantInt(initializer, scope);
@@ -288,7 +289,7 @@ final class Resolver {
               expression,
               header,
             ),
-            _ => const <VariableSymbol>[],
+            _ => const <_Write>[],
           },
           ..._writes(condition, header),
           ..._writes(step, header),
@@ -355,7 +356,7 @@ final class Resolver {
     Statement statement,
     StatementKind kind,
     Scope scope,
-    List<VariableSymbol> writes, {
+    List<_Write> writes, {
     String? unsupportedReason,
   }) {
     final first = statement.first;
@@ -369,13 +370,19 @@ final class Resolver {
             : last.origin == TokenOrigin.include
             ? 'it ends in an included file'
             : null);
+    final parts = <VariableSymbol, List<Selector>>{};
+    final seen = <VariableSymbol>{};
+    for (final (:variable, :part) in writes) {
+      if (seen.add(variable) && part.isNotEmpty) parts[variable] = part;
+    }
     _statements.add(
       StatementInfo(
         id: _statements.length,
         kind: kind,
         span: _span(first, last),
         scope: scope,
-        writes: writes,
+        writes: [for (final write in writes) write.variable],
+        writtenParts: parts,
         unsupportedReason: reason,
       ),
     );
@@ -385,12 +392,12 @@ final class Resolver {
 
   /// The variables [expression] writes, in source order: assignment targets,
   /// `++`/`--` operands, and arguments passed to `out`/`inout` parameters.
-  List<VariableSymbol> _writes(Expression? expression, Scope scope) {
+  List<_Write> _writes(Expression? expression, Scope scope) {
     if (expression == null) return const [];
-    final writes = <VariableSymbol>[];
+    final writes = <_Write>[];
     void add(Expression target) {
-      final variable = _root(target, scope);
-      if (variable != null) writes.add(variable);
+      final write = _written(target, scope);
+      if (write != null) writes.add(write);
     }
 
     for (final node in subexpressions(expression)) {
@@ -415,17 +422,40 @@ final class Resolver {
     return writes;
   }
 
-  /// The variable an assignment target writes: `v` for `v`, `v[i]`, `v.x`
-  /// and `v.a[2].b`.
-  static VariableSymbol? _root(Expression target, Scope scope) {
+  /// The variable an assignment target writes, and the part of it: `v` for
+  /// `v`, `v[i]` and `v.x`; `v` and `[2].b` for `v[2].b` and `v[2].b.x` (when
+  /// `b` is a vector). The part stops before an index that is not a
+  /// constant, and at the first part the probe can draw whole.
+  _Write? _written(Expression target, Scope scope) {
+    // The steps from the outermost one in, as the walk meets them.
+    final steps = <Selector>[];
     var current = target;
     while (true) {
       switch (current) {
-        case IndexExpression(:final target) || FieldExpression(:final target):
+        case IndexExpression(:final target, :final index):
+          final value = _constantInt(index, scope);
+          if (value == null || value < 0) {
+            // Which element is unknown, and so is everything inside it.
+            steps.clear();
+          } else {
+            steps.add(IndexSelector(value));
+          }
+          current = target;
+        case FieldExpression(:final target, :final field):
+          steps.add(FieldSelector(field.text));
           current = target;
         case NameExpression(:final name):
           final symbol = scope.lookup(name.text, at: name.offset);
-          return symbol is VariableSymbol ? symbol : null;
+          if (symbol is! VariableSymbol) return null;
+          final part = <Selector>[];
+          var type = symbol.type;
+          for (final step in steps.reversed) {
+            final next = type.visualization == null ? type.select(step) : null;
+            if (next == null) break;
+            part.add(step);
+            type = next;
+          }
+          return (variable: symbol, part: part);
         default:
           return null;
       }

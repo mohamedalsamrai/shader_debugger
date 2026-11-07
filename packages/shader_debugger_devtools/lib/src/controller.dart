@@ -85,6 +85,26 @@ class ShaderDebuggerController extends ChangeNotifier {
   VariableSymbol? get variable => _variable;
   VariableSymbol? _variable;
 
+  /// Steps from [variable] to the part shown, such as `[1]` for a matrix's
+  /// second column. Empty when the variable is drawn whole.
+  List<Selector> get path => _path;
+  List<Selector> _path = const [];
+
+  /// The GLSL expression shown, such as `lights[1].color`.
+  String? get expression => _variable == null
+      ? null
+      : _path.fold(
+          _variable!.name,
+          (expression, step) => step.applyTo(expression),
+        );
+
+  /// The type of the part shown.
+  GlslType? get valueType => _variable?.type.selectPath(_path);
+
+  /// The type [path]'s step at [depth] picks from: the variable's type for
+  /// depth 0, the part the step before picked for the others.
+  GlslType? typeAt(int depth) => _variable?.type.selectPath(_path.take(depth));
+
   HeatmapStatus get status => _status;
   HeatmapStatus _status = HeatmapStatus.off;
 
@@ -142,9 +162,10 @@ class ShaderDebuggerController extends ChangeNotifier {
       if (statement.isPickable) statement.line,
   };
 
-  /// Whether the probe can draw [variable] as it is.
+  /// Whether the probe can draw [variable], or a column, element or field
+  /// of it.
   static bool isCapturable(VariableSymbol? variable) =>
-      variable != null && variable.type.visualization != null;
+      variable != null && variable.type.firstDrawablePath != null;
 
   /// Starts following the app: connects as soon as its runtime is there.
   void start() {
@@ -228,6 +249,7 @@ class ShaderDebuggerController extends ChangeNotifier {
     _sourceError = null;
     _statement = null;
     _variable = null;
+    _path = const [];
     _notify();
     await reloadSource();
   }
@@ -255,6 +277,7 @@ class ShaderDebuggerController extends ChangeNotifier {
       final line = _statement?.line;
       _statement = null;
       _variable = null;
+      _path = const [];
       if (line != null) selectLine(line, live: false);
     } on WorkspaceException catch (error) {
       if (_asset != asset) return;
@@ -263,8 +286,9 @@ class ShaderDebuggerController extends ChangeNotifier {
     _notify();
   }
 
-  /// Selects the statement on 0-based [line], and the value it writes. While a
-  /// heatmap is shown and [live] is true, shows the new value right away.
+  /// Selects the statement on 0-based [line], and the value it writes: the
+  /// part it writes, for a composite. While a heatmap is shown and [live] is
+  /// true, shows the new value right away.
   void selectLine(int line, {bool live = true}) {
     final candidates = [
       for (final statement
@@ -276,17 +300,42 @@ class ShaderDebuggerController extends ChangeNotifier {
         candidates.where((s) => isCapturable(s.defaultPick)).lastOrNull ??
         candidates.last;
     _statement = statement;
-    _variable = isCapturable(statement.defaultPick)
+    final variable = isCapturable(statement.defaultPick)
         ? statement.defaultPick
         : statement.inScope.where(isCapturable).firstOrNull;
+    _variable = variable;
+    _path = variable == null
+        ? const []
+        : List.unmodifiable(statement.defaultPath(variable)!);
     _notify();
     if (live) _showIfLive();
   }
 
-  /// Selects which in-scope [variable] to show.
+  /// Selects which in-scope [variable] to show; for a composite, the part
+  /// the statement writes, or else its first drawable part.
   void selectVariable(VariableSymbol variable) {
-    if (!isCapturable(variable) || _variable == variable) return;
+    final statement = _statement;
+    if (statement == null || !isCapturable(variable) || _variable == variable) {
+      return;
+    }
     _variable = variable;
+    _path = List.unmodifiable(statement.defaultPath(variable)!);
+    _notify();
+    _showIfLive();
+  }
+
+  /// Changes the step of [path] at [depth] to [selector], then goes on to
+  /// the first drawable part below it. While a heatmap is shown, shows the
+  /// new part right away.
+  void selectStep(int depth, Selector selector) {
+    final variable = _variable;
+    if (variable == null || depth < 0 || depth >= _path.length) return;
+    final prefix = [..._path.take(depth), selector];
+    final rest = variable.type.selectPath(prefix)?.firstDrawablePath;
+    if (rest == null) return;
+    final path = [...prefix, ...rest];
+    if (listEquals(path, _path)) return;
+    _path = List.unmodifiable(path);
     _notify();
     _showIfLive();
   }
@@ -315,7 +364,7 @@ class ShaderDebuggerController extends ChangeNotifier {
     try {
       probe = instrument(
         analysis,
-        CaptureRequest(statement: statement, variable: variable),
+        CaptureRequest(statement: statement, variable: variable, path: _path),
         stamp: _nextStamp(),
       );
     } on InstrumentationException catch (error) {

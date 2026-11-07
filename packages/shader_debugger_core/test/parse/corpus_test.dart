@@ -49,19 +49,22 @@ void main() {
         () async {
           final analysis = analyze();
           final probes = <Probe>[];
+          // What the picker selects first: the written variable, down to
+          // the part written, or the first variable with a drawable part.
           for (final statement in analysis.statements) {
-            final variable =
-                statement.defaultPick ??
-                statement.inScope
-                    .where((v) => v.type.visualization != null)
-                    .firstOrNull;
-            if (variable == null || variable.type.visualization == null) {
-              continue;
-            }
+            final variable = [
+              ?statement.defaultPick,
+              ...statement.inScope,
+            ].where((v) => statement.defaultPath(v) != null).firstOrNull;
+            if (variable == null) continue;
             probes.add(
               instrument(
                 analysis,
-                CaptureRequest(statement: statement, variable: variable),
+                CaptureRequest(
+                  statement: statement,
+                  variable: variable,
+                  path: statement.defaultPath(variable)!,
+                ),
                 stamp: statement.id,
               ),
             );

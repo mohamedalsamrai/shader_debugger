@@ -128,6 +128,86 @@ void split(out float r, inout vec2 q, float k) {
     });
   });
 
+  group('written parts', () {
+    const globals = '''
+struct Light {
+  vec2 position;
+  vec3 color;
+};
+const int LAST = 1;
+''';
+    late ShaderAnalysis analysis;
+    setUp(
+      () => analysis = analyzeMain(globals: globals, '''
+  Light lights[2];
+  mat3 m = mat3(1.0);
+  float w[3];
+  int i = 2;
+  lights[1].color.r = 1.0;
+  lights[LAST - 1] = Light(vec2(0.0), vec3(1.0));
+  lights[i].position = vec2(0.5);
+  m[2][1] = 0.5;
+  w[i] = 1.0;
+  w[2] = w[0] = 0.0;
+  lights[0].color = vec3(w[2]);
+'''),
+    );
+
+    Map<String, List<Selector>> parts(String text) => {
+      for (final MapEntry(:key, :value) in statement(
+        analysis,
+        text,
+      ).writtenParts.entries)
+        key.name: value,
+    };
+
+    test('follow constant indices and fields, up to a drawable part', () {
+      expect(parts('lights[1].color.r'), {
+        'lights': const [IndexSelector(1), FieldSelector('color')],
+      });
+      expect(parts('lights[LAST - 1] ='), {
+        'lights': const [IndexSelector(0)],
+      });
+      expect(parts('m[2][1] ='), {
+        'm': const [IndexSelector(2)],
+      });
+    });
+
+    test('stop before an index that is not a constant', () {
+      expect(parts('lights[i].position'), isEmpty);
+      expect(parts('w[i] ='), isEmpty);
+    });
+
+    test('whole writes have none; the first write of a variable counts', () {
+      expect(parts('mat3 m'), isEmpty);
+      expect(parts('w[2] = w[0]'), {
+        'w': const [IndexSelector(2)],
+      });
+    });
+
+    test('the default path goes to the written part, then on to a drawable '
+        'one', () {
+      final lights = variable(analysis, 'lights');
+      final m = variable(analysis, 'm');
+      expect(statement(analysis, 'lights[LAST - 1] =').defaultPath(lights), [
+        const IndexSelector(0),
+        const FieldSelector('position'),
+      ]);
+      expect(statement(analysis, 'lights[1].color.r').defaultPath(lights), [
+        const IndexSelector(1),
+        const FieldSelector('color'),
+      ]);
+      // Not written here: the first drawable part.
+      expect(statement(analysis, 'w[i] =').defaultPath(m), [
+        const IndexSelector(0),
+      ]);
+      expect(
+        statement(analysis, 'w[i] =').defaultPath(variable(analysis, 'i')),
+        isEmpty,
+      );
+    });
+  });
+
   group('scopes and control flow', () {
     test('a for header declares into a scope the body shares', () {
       final analysis = analyzeMain('''

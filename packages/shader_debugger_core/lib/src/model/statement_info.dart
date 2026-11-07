@@ -4,6 +4,7 @@ library;
 
 import 'package:source_span/source_span.dart';
 
+import 'glsl_type.dart';
 import 'symbols.dart';
 
 /// The kind of a statement. It decides where a capture is placed.
@@ -38,9 +39,14 @@ final class StatementInfo {
     required this.span,
     required this.scope,
     Iterable<VariableSymbol> writes = const [],
+    Map<VariableSymbol, List<Selector>> writtenParts = const {},
     this.unsupportedReason,
   }) : assert(scope.function != null, 'statements run inside a function'),
-       writes = List.unmodifiable(writes.toSet());
+       writes = List.unmodifiable(writes.toSet()),
+       writtenParts = Map<VariableSymbol, List<Selector>>.unmodifiable({
+         for (final MapEntry(:key, :value) in writtenParts.entries)
+           key: List<Selector>.unmodifiable(value),
+       });
 
   /// Unique within its `ShaderAnalysis`.
   final int id;
@@ -62,6 +68,16 @@ final class StatementInfo {
   /// `inout` parameters. Writes made inside nested statements belong to
   /// those statements.
   final List<VariableSymbol> writes;
+
+  /// For each of [writes] that the statement writes only in part, as far as
+  /// the analyzer can tell, that part: `[1].color` for
+  /// `lights[1].color.r = 1.0;`.
+  ///
+  /// A part stops before an index that is not a constant, and at the first
+  /// part the probe can draw whole, so swizzles and vector components are
+  /// left out. Variables written whole have no entry; when a statement
+  /// writes a variable more than once, its first write counts.
+  final Map<VariableSymbol, List<Selector>> writtenParts;
 
   /// Why the debugger cannot capture at this statement, or null if it can.
   ///
@@ -96,6 +112,16 @@ final class StatementInfo {
   VariableSymbol? get defaultPick {
     final visible = inScope.toSet();
     return writes.where(visible.contains).firstOrNull;
+  }
+
+  /// The path the picker selects first for [variable]: to the part this
+  /// statement writes ([writtenParts]), then on to the first part of it the
+  /// probe can draw ([GlslType.firstDrawablePath]). Null when no part of
+  /// [variable] can be drawn.
+  List<Selector>? defaultPath(VariableSymbol variable) {
+    final part = writtenParts[variable] ?? const [];
+    final rest = variable.type.selectPath(part)?.firstDrawablePath;
+    return rest == null ? variable.type.firstDrawablePath : [...part, ...rest];
   }
 
   @override

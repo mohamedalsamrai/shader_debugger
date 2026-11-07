@@ -209,6 +209,20 @@ sealed class GlslType {
     return type;
   }
 
+  /// The path to the first part of a value of this type that the probe can
+  /// draw: empty when it draws the value whole, otherwise column 0, element 0
+  /// or the first field with a drawable part, recursively. Null when no part
+  /// can be drawn, as for samplers.
+  List<Selector>? get firstDrawablePath =>
+      visualization != null ? const [] : null;
+
+  /// The steps the picker offers from a value of this type: every column,
+  /// element or field that has a drawable part.
+  ///
+  /// Empty when the type is not a composite. Also empty for an array of
+  /// unknown length, whose indices cannot be listed; [select] accepts any.
+  List<Selector> get selectorChoices => const [];
+
   /// Returns a GLSL expression that converts [expression], a value of this
   /// type, to the `vec4` the probe writes out.
   ///
@@ -338,6 +352,14 @@ final class MatrixType extends GlslType {
     IndexSelector(:final index) when index < columns => columnType,
     _ => null,
   };
+
+  @override
+  List<Selector> get firstDrawablePath => const [IndexSelector(0)];
+
+  @override
+  List<Selector> get selectorChoices => [
+    for (var i = 0; i < columns; i++) IndexSelector(i),
+  ];
 }
 
 /// An opaque sampler type, such as `sampler2D`.
@@ -384,6 +406,21 @@ final class ArrayType extends GlslType {
   }
 
   @override
+  List<Selector>? get firstDrawablePath {
+    final rest = elementType.firstDrawablePath;
+    return rest == null ? null : [const IndexSelector(0), ...rest];
+  }
+
+  @override
+  List<Selector> get selectorChoices {
+    final length = this.length;
+    if (length == null || elementType.firstDrawablePath == null) {
+      return const [];
+    }
+    return [for (var i = 0; i < length; i++) IndexSelector(i)];
+  }
+
+  @override
   bool operator ==(Object other) =>
       other is ArrayType &&
       other.elementType == elementType &&
@@ -419,6 +456,22 @@ final class StructType extends GlslType {
     FieldSelector(name: final fieldName) => fieldNamed(fieldName)?.type,
     _ => null,
   };
+
+  @override
+  List<Selector>? get firstDrawablePath {
+    for (final field in fields) {
+      if (field.type.firstDrawablePath case final rest?) {
+        return [FieldSelector(field.name), ...rest];
+      }
+    }
+    return null;
+  }
+
+  @override
+  List<Selector> get selectorChoices => [
+    for (final field in fields)
+      if (field.type.firstDrawablePath != null) FieldSelector(field.name),
+  ];
 }
 
 /// A field of a [StructType].
