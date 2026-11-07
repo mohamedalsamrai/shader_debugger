@@ -3,8 +3,7 @@
 Debug-only runtime for the Flutter shader debugger. Add it to an app to get the
 Shader Debugger tab in DevTools.
 
-**Status: M2 in progress.** The runtime side of heatmap mode works; the
-DevTools extension's side is next. See
+**Status: heatmap (M2) and pixel inspector (M3) built.** See
 [docs/architecture.md](../../docs/architecture.md).
 
 ## Use
@@ -33,14 +32,21 @@ flutter:
 In profile and release mode `DebugShader` records nothing, and `shader` is
 always the original.
 
+To pick a pixel by clicking it in the app, draw the shader without
+transforming the canvas first: the click is mapped into the painting render
+box's coordinates. Otherwise, type the coordinates in DevTools.
+
 ## How it works
 
 - `DebugShader` records the uniforms it is given. While a heatmap is shown for
   its asset, `shader` returns the probe instead, with the uniforms replayed on
   it by name.
 - `ShaderDebugger` loads the probe, checks its version stamp, and answers the
-  DevTools extension through `ext.shader_debugger.getInfo`, `showHeatmap` and
-  `hideHeatmap`.
+  DevTools extension through `ext.shader_debugger.getInfo`, `showHeatmap`,
+  `hideHeatmap`, `readPixel`, `pickPixel` and `cancelPick`.
+- `readPixel` draws the probe offscreen into one 32-bit float pixel, with the
+  app's uniforms and `FlutterFragCoord()` pinned to the point, and reads the
+  value back exactly (on Impeller).
 
 ## Layout
 

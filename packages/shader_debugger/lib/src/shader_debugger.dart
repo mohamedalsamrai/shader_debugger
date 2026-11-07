@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shader_debugger_core/protocol.dart';
 
 import 'debug_shader.dart';
@@ -216,11 +217,15 @@ final class ShaderDebugger {
     RenderBox? box;
     if (view != null) {
       final result = HitTestResult();
-      RendererBinding.instance.hitTestInView(
-        result,
-        position,
-        view.flutterView.viewId,
-      );
+      try {
+        RendererBinding.instance.hitTestInView(
+          result,
+          position,
+          view.flutterView.viewId,
+        );
+      } on AssertionError {
+        // Part of the tree awaits layout; fall back to the bounds below.
+      }
       box = result.path
           .map((entry) => entry.target)
           .whereType<RenderBox>()
@@ -255,6 +260,19 @@ final class ShaderDebugger {
     postEvent(
       ServiceEvents.pixelPicked,
       pickAt(asset, event.position, viewId: event.viewId),
+    );
+  }
+
+  static Future<void> _endOfPendingFrame() async {
+    final scheduler = SchedulerBinding.instance;
+    if (!scheduler.hasScheduledFrame &&
+        scheduler.schedulerPhase == SchedulerPhase.idle) {
+      return;
+    }
+    // A hidden window may never draw it; do not wait forever.
+    await scheduler.endOfFrame.timeout(
+      const Duration(seconds: 1),
+      onTimeout: () {},
     );
   }
 
@@ -351,6 +369,9 @@ final class ShaderDebugger {
           throw const FormatException('pickPixel needs "asset".');
         }
         if (parameters.containsKey('x') || parameters.containsKey('y')) {
+          // Unlike a tap, this can come right after a heatmap change marked
+          // the tree for layout; hit testing needs it laid out.
+          await _endOfPendingFrame();
           return pickAt(
             asset,
             Offset(

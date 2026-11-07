@@ -4,9 +4,9 @@ How the Flutter shader debugger works, what is built, and what comes next.
 Read this before changing the analyzer, the instrumenter or the runtime.
 
 The debugger lets you pick a variable in a fragment shader (`.frag`) and see it
-as a live heatmap where the shader is drawn in the running app (M2). Next comes
-clicking a pixel to read the variable's exact value there (M3), then
-auto-generated sliders for uniforms (M4).
+as a live heatmap where the shader is drawn in the running app (M2), or click a
+pixel to read the variable's exact value there (M3). Next come auto-generated
+sliders for uniforms (M4).
 
 ## Overview
 
@@ -27,8 +27,8 @@ Running app (debug mode, package:shader_debugger)
   and lists the variables written and in scope at each statement.
 - **Instrumenter:** `instrument()` in `shader_debugger_core` generates the
   probe shader.
-- **Results panel:** heatmap controls (range, colormap), and pixel values in
-  M3.
+- **Results panel:** heatmap controls (range, colormap), and the value at a
+  pixel, typed or picked in the app.
 
 **In between: tooling**
 - **DTD file system:** `readFileAsString` / `writeFileAsString`. Writes are
@@ -41,10 +41,14 @@ Running app (debug mode, package:shader_debugger)
 - **`DebugShader`** wraps a `FragmentShader`. It records uniforms by name, and
   images as clones it keeps alive. While a heatmap is shown for its asset, its
   `shader` getter returns the probe, with the recorded uniforms replayed on it.
+  It also remembers which render boxes painted with it
+  (`RenderObject.debugActivePaint`), so a tap can be mapped to its
+  coordinates.
 - **`ShaderDebugger`** loads the probe program, checks the probe's version
   stamp, and answers the extension through service extensions:
-  `ext.shader_debugger.getInfo`, `showHeatmap` and `hideHeatmap`. Pixel
-  readback joins them in M3.
+  `ext.shader_debugger.getInfo`, `showHeatmap`, `hideHeatmap`, `readPixel`,
+  `pickPixel` and `cancelPick`. A picked pixel comes back as a
+  `shader_debugger.pixelPicked` event on the Extension stream.
 
 ## How a heatmap gets on screen
 
@@ -59,10 +63,35 @@ Running app (debug mode, package:shader_debugger)
    landing.
 5. Every `DebugShader` for that asset now draws the probe, with the app's
    uniforms replayed on it by name.
-6. (M3) Pixel mode: the probe pins `FlutterFragCoord` to the chosen pixel.
-   The app renders offscreen with
-   `Picture.toImageSync(w, h, targetFormat: TargetPixelFormat.rgbaFloat32)`
-   and reads back exact 32-bit floats.
+
+The extension remembers which probe the app has loaded. Showing the heatmap
+again, or reading a pixel with the same selection, skips steps 2 and 3. When a
+hot reload fails, it writes back the probe the app still has, so the
+developer's own hot reloads do not fail on the broken one.
+
+## How a pixel gets read
+
+1. **Pick:** `pickPixel(asset)` arms a global pointer route. On the next tap,
+   the app finds the topmost render box that painted a `DebugShader` for the
+   asset, moves the tap to the center of its device pixel, and converts it to
+   the box's local coordinates: what `FlutterFragCoord()` returns there. It
+   posts them, with the instance and the box's size, as a
+   `shader_debugger.pixelPicked` event. The tap also reaches the app.
+   Coordinates can also be typed in the page.
+2. **Read:** with the probe loaded (as for a heatmap), `readPixel(asset,
+   stamp, x, y, instance)` draws the probe into one pixel with
+   `Picture.toImageSync(1, 1, targetFormat: TargetPixelFormat.rgbaFloat32)`
+   and reads it back with `ImageByteFormat.rawExtendedRgba128`. The probe
+   pins `FlutterFragCoord()` to (x, y), and the uniforms are those of the
+   instance under the tap.
+3. **Two passes:** pixel modes write an alpha of 1, so that alpha never scales
+   the color: `_dbg_mode` 1 writes x, y and z, and 2 writes w.
+
+Checked on macOS with Impeller: the read is exact (`d` came back as the
+float32 of its true value, and values outside 0..1 are not clamped). The
+default target format, and the engine `flutter test` uses, round to 8 bits
+per channel. JSON has no NaN or infinities, so those components travel as the
+strings `NaN`, `Infinity` and `-Infinity`.
 
 ## Probes
 
@@ -241,8 +270,12 @@ with Impeller (`tool/e2e_heatmap.py`).
 - **Loops and repeated calls:** a value inside a loop, or in a function called
   more than once, shows its last write. Iteration and call selectors come
   later.
-- **Pixel readback:** draw the probe with `BlendMode.src`, so blending and
-  premultiplied alpha do not alter the raw values.
+- **Pixel readback:** the probe is drawn with `BlendMode.src` and an alpha of
+  1, so blending and premultiplied alpha do not alter the raw values.
+- **Picking a pixel:** the tap is mapped through the render box that painted
+  the shader. A painter that transforms the canvas before drawing (scale,
+  rotate, translate) is not accounted for; type the coordinates instead.
+  The tap also reaches the app's own widgets.
 - **Backend-specific code:** the analyzer assumes `IMPELLER_GRAPHICS_BACKEND`.
   Code in `#ifdef` branches for other backends is not listed.
 - **`main` with a separate prototype:** the instrumenter renames only the
@@ -257,7 +290,7 @@ with Impeller (`tool/e2e_heatmap.py`).
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
 | M2 | Heatmap mode end to end | Built. Verified end to end through a real Dart Tooling Daemon and `flutter run`; the DevTools page itself still needs a check in a browser. |
-| M3 | Pixel inspector | Not started |
+| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. The page still needs a check in a browser. |
 | M4 | Auto sliders for uniforms (the analyzer already knows their names and types) | Not started |
 
 **M2's extension side** (`packages/shader_debugger_devtools`):
@@ -272,6 +305,10 @@ with Impeller (`tool/e2e_heatmap.py`).
 - When DTD may not write the probe (no workspace root covers it), the page
   offers the probe to copy, then checks once the user has pasted it and hot
   reloaded.
+- M3: the Pixel section reads the selected value at typed coordinates, or at
+  a pixel picked in the app, and shows each component with nine significant
+  digits (ints and bools as such). Picking another value, part or line
+  re-reads it at the same pixel.
 - `ports.dart` abstracts the app and the files. `devtools_ports.dart` is the
   only code that uses DevTools' globals, so the controller and the page are
   tested with fakes. `test/live_test.dart` runs the controller against a real
@@ -279,9 +316,9 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 **Next:**
 - Check the page in a real DevTools in a browser, including the composite
-  picker. No example shader uses composites yet; a second one in the example
-  app would show them off.
-- M3, the pixel inspector.
+  picker and the Pixel section. No example shader uses composites yet; a
+  second one in the example app would show them off.
+- M4, sliders for uniforms.
 
 ## Open questions
 

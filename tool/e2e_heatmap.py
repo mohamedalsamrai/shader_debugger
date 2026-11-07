@@ -1,9 +1,10 @@
-"""End-to-end check of heatmap mode's app side, through the real Flutter tool.
+"""End-to-end check of the app side, through the real Flutter tool.
 
 Runs the example app on macOS with `flutter run --machine`, writes probes into
 shaders/_debug/probe.frag, hot reloads, and drives the ext.shader_debugger.*
-service extensions the way the DevTools extension will. The probe is the
-instrumenter's golden output (example/test/probes/gradient_capture_d.frag).
+service extensions the way the DevTools extension does: heatmaps, and picking
+and reading a pixel (which must come back as an exact 32-bit float). The probe
+is the instrumenter's golden output (example/test/probes/gradient_capture_d.frag).
 The placeholder probe is restored at the end.
 
 Usage, from the repo root:
@@ -85,6 +86,8 @@ def extension(name, **params):
         'methodName': 'ext.shader_debugger.' + name,
         'params': {key: str(value) for key, value in params.items()},
     })
+    if 'error' in message:
+        return {'error': message['error']}
     result = message.get('result') or {}
     return {k: v for k, v in result.items() if k not in ('type', 'method')}
 

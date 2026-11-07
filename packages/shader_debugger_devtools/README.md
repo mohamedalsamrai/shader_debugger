@@ -4,12 +4,13 @@ The Shader Debugger DevTools extension: a Flutter web app that DevTools loads in
 a tab. It is not published on its own. Its compiled output ships inside
 `package:shader_debugger` under `extension/devtools/build/`.
 
-**Status: heatmap mode (M2).** Pick a shader the app draws through
-`DebugShader`, click a line, choose a value (for a matrix, array or struct,
-also the column, element or field), and press Show heatmap. The
-extension writes the probe through the Dart Tooling Daemon, hot reloads, and
-has the app draw it; the range can change without a reload. The pixel
-inspector arrives in M3.
+**Status: heatmap (M2) and pixel inspector (M3).** Pick a shader the app
+draws through `DebugShader`, click a line, choose a value (for a matrix,
+array or struct, also the column, element or field), and press Show heatmap.
+The extension writes the probe through the Dart Tooling Daemon, hot reloads,
+and has the app draw it; the range can change without a reload. In the Pixel
+section, type coordinates or press Pick in app and click the shader, to read
+the value there as exact 32-bit floats.
 
 | File | What it does |
 |---|---|
