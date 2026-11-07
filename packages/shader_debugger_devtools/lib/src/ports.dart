@@ -58,21 +58,48 @@ final class PixelAnswer extends ProbeAnswer {
     applied: json['applied'] == true,
     reason: json['reason'] as String?,
     value: switch (json['value']) {
-      final List<Object?> value when value.isNotEmpty => [
-        for (final component in value)
-          switch (component) {
-            final num number => number.toDouble(),
-            // NaN, Infinity and -Infinity, which JSON cannot carry.
-            final String text => double.tryParse(text) ?? double.nan,
-            _ => double.nan,
-          },
-      ],
+      final List<Object?> value when value.isNotEmpty => _floats(value),
       _ => null,
     },
   );
 
   /// The captured value's x, y, z and w, once applied.
   final List<double>? value;
+}
+
+/// Floats from JSON: numbers, or NaN, Infinity and -Infinity as strings,
+/// which JSON cannot carry.
+List<double> _floats(List<Object?> json) => [
+  for (final component in json)
+    switch (component) {
+      final num number => number.toDouble(),
+      final String text => double.tryParse(text) ?? double.nan,
+      _ => double.nan,
+    },
+];
+
+/// The app's answer to `ext.shader_debugger.getUniforms`.
+@immutable
+final class UniformValues {
+  const UniformValues({required this.values, required this.overrides});
+
+  factory UniformValues.fromJson(Map<String, Object?> json) {
+    Map<String, List<double>> byName(Object? map) => {
+      if (map is Map)
+        for (final MapEntry(:key, :value) in map.entries)
+          if (key is String && value is List) key: _floats(value),
+    };
+    return UniformValues(
+      values: byName(json['values']),
+      overrides: byName(json['overrides']),
+    );
+  }
+
+  /// The app's own values, by uniform name.
+  final Map<String, List<double>> values;
+
+  /// The overrides in force, by uniform name.
+  final Map<String, List<double>> overrides;
 }
 
 /// A pixel clicked in the app in select mode: a `shader_debugger.pixelPicked`
@@ -159,6 +186,20 @@ abstract interface class DebuggedApp {
 
   /// Select mode turned off from the app, with its Done button.
   Stream<void> get pixelSelectModeExits;
+
+  /// The float uniforms the app sets for [asset], and the overrides.
+  Future<UniformValues> getUniforms(String asset);
+
+  /// Overrides the uniform [name] of [asset]'s shaders with [values]. Returns
+  /// null once applied, or why not: `unknownUniform` or `noShaderForAsset`.
+  Future<String?> setUniformOverride({
+    required String asset,
+    required String name,
+    required List<double> values,
+  });
+
+  /// Drops the override of [name], or every override of [asset].
+  Future<void> clearUniformOverrides({required String asset, String? name});
 
   /// Hot reloads the app. Throws if the reload fails, for example because the
   /// probe does not compile.

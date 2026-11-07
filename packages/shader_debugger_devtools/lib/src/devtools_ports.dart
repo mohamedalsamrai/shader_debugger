@@ -102,6 +102,33 @@ final class DevToolsDebuggedApp implements DebuggedApp {
       _events(ServiceEvents.pixelSelectMode);
 
   @override
+  Future<UniformValues> getUniforms(String asset) async =>
+      UniformValues.fromJson(
+        await _call(ServiceExtensions.getUniforms, {'asset': asset}),
+      );
+
+  @override
+  Future<String?> setUniformOverride({
+    required String asset,
+    required String name,
+    required List<double> values,
+  }) async {
+    final json = await _call(ServiceExtensions.setUniformOverride, {
+      'asset': asset,
+      'name': name,
+      'values': values.join(','),
+    });
+    return json['applied'] == true ? null : json['reason'] as String? ?? '';
+  }
+
+  @override
+  Future<void> clearUniformOverrides({required String asset, String? name}) =>
+      _call(ServiceExtensions.clearUniformOverrides, {
+        'asset': asset,
+        'name': ?name,
+      });
+
+  @override
   Future<void> hotReload() => serviceManager.performHotReload();
 
   @override

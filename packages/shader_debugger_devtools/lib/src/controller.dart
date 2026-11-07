@@ -64,12 +64,46 @@ final class PixelValue {
   final List<double> components;
 }
 
+/// A uniform of the shader, as the Uniforms tab lists it.
+@immutable
+final class ShaderUniform {
+  const ShaderUniform(this.name, this.type);
+
+  final String name;
+  final GlslType type;
+
+  /// How many floats the app sets for it by name: 1 for a float, 4 for a
+  /// vec4, 9 for a mat3. 0 for a sampler, and null for what Flutter cannot
+  /// set from Dart (ints, bools, arrays); neither can be overridden.
+  int? get components => switch (type) {
+    ScalarType(kind: ScalarKind.float) => 1,
+    VectorType(kind: ScalarKind.float, :final size) => size,
+    MatrixType(:final columns, :final rows) => columns * rows,
+    SamplerType() => 0,
+    _ => null,
+  };
+
+  bool get canOverride => (components ?? 0) > 0;
+
+  /// The name of each component: x, y, z, w for a vector; `[1].y` for a
+  /// matrix's column 1, row 1 (components run column by column).
+  List<String> get componentNames => switch (type) {
+    VectorType(:final size) => ['x', 'y', 'z', 'w'].sublist(0, size),
+    MatrixType(:final columns, :final rows) => [
+      for (var column = 0; column < columns; column++)
+        for (var row = 0; row < rows; row++) '[$column].${'xyzw'[row]}',
+    ],
+    _ => [''],
+  };
+}
+
 class ShaderDebuggerController extends ChangeNotifier {
   ShaderDebuggerController({
     required this.app,
     required this.workspace,
     this.retryDelay = const Duration(milliseconds: 300),
     this.retries = 10,
+    this.uniformRefresh = const Duration(milliseconds: 500),
     int Function()? clock,
   }) : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch);
 
@@ -81,6 +115,9 @@ class ShaderDebuggerController extends ChangeNotifier {
 
   /// How many times to ask before giving up.
   final int retries;
+
+  /// How often the app's uniform values are read while watched.
+  final Duration uniformRefresh;
 
   final int Function() _clock;
 
@@ -194,6 +231,25 @@ class ShaderDebuggerController extends ChangeNotifier {
   StreamSubscription<PixelPick>? _picks;
   StreamSubscription<void>? _selectExits;
 
+  /// The app's own uniform values, by name, as last read.
+  Map<String, List<double>> get uniformValues => _uniformValues;
+  Map<String, List<double>> _uniformValues = const {};
+
+  /// The overrides in force, by uniform name.
+  Map<String, List<double>> get uniformOverrides => _uniformOverrides;
+  Map<String, List<double>> _uniformOverrides = const {};
+
+  /// Why reading or overriding uniforms failed.
+  String? get uniformsError => _uniformsError;
+  String? _uniformsError;
+
+  Timer? _uniformWatch;
+  bool _readingUniforms = false;
+
+  /// Overrides waiting for the one in flight for the same uniform.
+  final _pendingOverrides = <String, List<double>>{};
+  final _sendingOverrides = <String>{};
+
   /// The probe the app has loaded, as far as the debugger knows, and the
   /// selection it captures. The heatmap and pixel reads share it.
   Probe? _loadedProbe;
@@ -272,6 +328,7 @@ class ShaderDebuggerController extends ChangeNotifier {
       );
     }
     _stopSelecting();
+    _uniformWatch?.cancel();
     super.dispose();
   }
 
@@ -349,8 +406,12 @@ class ShaderDebuggerController extends ChangeNotifier {
     _variable = null;
     _path = const [];
     await _forgetPixel();
+    _uniformValues = const {};
+    _uniformOverrides = const {};
+    _uniformsError = null;
     _notify();
     await reloadSource();
+    if (_uniformWatch != null) await refreshUniforms();
   }
 
   /// Reads the current shader again, after it was edited.
@@ -683,6 +744,116 @@ class ShaderDebuggerController extends ChangeNotifier {
     _pixelValue = null;
     _pixelStatus = PixelStatus.off;
     _pixelMessage = null;
+  }
+
+  // Uniforms.
+
+  /// The shader's uniforms, in declaration order.
+  List<ShaderUniform> get uniforms => [
+    for (final uniform in _analysis?.uniforms ?? const <VariableSymbol>[])
+      ShaderUniform(uniform.name, uniform.type),
+  ];
+
+  /// Reads the app's uniform values every [uniformRefresh] while [watch] is
+  /// true, as the Uniforms tab does while it is open.
+  void watchUniforms(bool watch) {
+    _uniformWatch?.cancel();
+    _uniformWatch = null;
+    if (!watch) return;
+    _uniformWatch = Timer.periodic(uniformRefresh, (_) => refreshUniforms());
+    refreshUniforms();
+  }
+
+  /// Reads the app's uniform values and the overrides in force.
+  Future<void> refreshUniforms() async {
+    final asset = _asset;
+    if (asset == null ||
+        _connection != AppConnection.ready ||
+        _readingUniforms) {
+      return;
+    }
+    _readingUniforms = true;
+    try {
+      final uniforms = await app.getUniforms(asset);
+      if (_asset != asset) return;
+      _uniformValues = uniforms.values;
+      // Overrides being sent are newer than the app's.
+      _uniformOverrides = {
+        ...uniforms.overrides,
+        for (final name in _sendingOverrides) name: ?_uniformOverrides[name],
+      };
+      _uniformsError = null;
+    } on Object catch (error) {
+      _uniformsError = 'Could not read the uniforms: $error';
+    } finally {
+      _readingUniforms = false;
+    }
+    _notify();
+  }
+
+  /// Overrides the uniform [name] with [values], one per component: the app
+  /// draws with them, and the heatmap and pixel reads see them, until
+  /// [clearUniformOverride]. Shows at once; changes made faster than the app
+  /// answers are merged, the latest winning.
+  Future<void> setUniformOverride(String name, List<double> values) async {
+    final asset = _asset;
+    if (asset == null) return;
+    _uniformOverrides = {..._uniformOverrides, name: List.unmodifiable(values)};
+    _notify();
+    if (_sendingOverrides.contains(name)) {
+      _pendingOverrides[name] = values;
+      return;
+    }
+    _sendingOverrides.add(name);
+    try {
+      List<double>? next = values;
+      while (next != null) {
+        final String? rejection;
+        try {
+          rejection = await app.setUniformOverride(
+            asset: asset,
+            name: name,
+            values: next,
+          );
+        } on Object catch (error) {
+          _uniformsError = 'Could not override $name: $error';
+          break;
+        }
+        if (rejection != null) {
+          _uniformsError = switch (rejection) {
+            'unknownUniform' =>
+              'The app has no float uniform $name with ${next.length} '
+                  'components.',
+            _ => 'The app refused to override $name ($rejection).',
+          };
+          _uniformOverrides = {..._uniformOverrides}..remove(name);
+          break;
+        }
+        _uniformsError = null;
+        next = _pendingOverrides.remove(name);
+      }
+    } finally {
+      _sendingOverrides.remove(name);
+      _pendingOverrides.remove(name);
+      _notify();
+    }
+  }
+
+  /// Drops the override of [name], or every override when [name] is null:
+  /// the app's own values apply again.
+  Future<void> clearUniformOverride([String? name]) async {
+    final asset = _asset;
+    if (asset == null) return;
+    _uniformOverrides = name == null
+        ? const {}
+        : ({..._uniformOverrides}..remove(name));
+    _notify();
+    try {
+      await app.clearUniformOverrides(asset: asset, name: name);
+    } on Object catch (error) {
+      _uniformsError = 'Could not clear the override: $error';
+      _notify();
+    }
   }
 
   // Loading probes.

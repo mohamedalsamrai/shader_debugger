@@ -61,6 +61,15 @@ enum ProbeRejection {
   probeNotLoaded,
 }
 
+/// Why [ShaderDebugger.setUniformOverride] did not apply.
+enum UniformRejection {
+  /// No live [DebugShader] uses the asset.
+  noShaderForAsset,
+
+  /// The shader has no float uniform of that name and component count.
+  unknownUniform,
+}
+
 /// A pixel of a [DebugShader] on screen, found by
 /// [ShaderDebugger.pixelTargetAt].
 @internal
@@ -119,6 +128,9 @@ final class ShaderDebugger {
 
   /// The asset whose pixels are being selected, while select mode is on.
   String? _selectAsset;
+
+  /// Uniform overrides, by asset, then by uniform name.
+  final Map<String, Map<String, List<double>>> _overrides = {};
 
   /// The select mode overlay, or null when select mode is off or the app
   /// has no Overlay.
@@ -231,6 +243,60 @@ final class ShaderDebugger {
 
   /// The asset whose pixels are being selected, while select mode is on.
   String? get pixelSelectAsset => _selectAsset;
+
+  /// The uniform overrides in force for [asset], by uniform name.
+  Map<String, List<double>> overridesFor(String asset) =>
+      _overrides[asset] ?? const {};
+
+  /// The float uniforms the app set on the first [DebugShader] for [asset],
+  /// or null when no [DebugShader] uses it.
+  Map<String, List<double>>? uniformValues(String asset) => shaders
+      .where((shader) => shader.asset == asset)
+      .firstOrNull
+      ?.recordedUniforms;
+
+  /// Overrides the float uniform [name] of every [DebugShader] for [asset]
+  /// with [values], one per component: on every paint, and in the probe,
+  /// until [clearUniformOverrides]. Returns null once applied, or why not.
+  UniformRejection? setUniformOverride(
+    String asset,
+    String name,
+    List<double> values,
+  ) {
+    if (!kDebugMode) return UniformRejection.noShaderForAsset;
+    final first = shaders.where((shader) => shader.asset == asset).firstOrNull;
+    if (first == null) return UniformRejection.noShaderForAsset;
+    if (!first.hasFloatUniform(name, values.length)) {
+      return UniformRejection.unknownUniform;
+    }
+    (_overrides[asset] ??= {})[name] = List.unmodifiable(values);
+    _repaintShaders(asset);
+    return null;
+  }
+
+  /// Drops the override of [name] for [asset], or every override for it
+  /// when [name] is null, so the app's own values apply again.
+  void clearUniformOverrides(String asset, {String? name}) {
+    final overrides = _overrides[asset];
+    if (overrides == null) return;
+    if (name == null) {
+      _overrides.remove(asset);
+    } else {
+      overrides.remove(name);
+      if (overrides.isEmpty) _overrides.remove(asset);
+    }
+    _repaintShaders(asset);
+  }
+
+  /// Repaints what painted the [DebugShader]s for [asset], so a change shows
+  /// even when the app has no reason to repaint.
+  void _repaintShaders(String asset) {
+    for (final shader in shaders.where((shader) => shader.asset == asset)) {
+      for (final box in shader.painters) {
+        box.markNeedsPaint();
+      }
+    }
+  }
 
   /// Turns pixel select mode on for [asset], or off.
   ///
@@ -512,6 +578,38 @@ final class ShaderDebugger {
         }
         final overlay = setPixelSelectMode(enabled: enabled, asset: asset);
         return {'enabled': enabled, 'overlay': overlay};
+      case ServiceExtensions.getUniforms:
+        final asset = _required(parameters, 'asset');
+        List<Object> json(List<double> values) => [
+          for (final value in values) value.isFinite ? value : '$value',
+        ];
+        return {
+          'values': {
+            for (final MapEntry(:key, :value)
+                in (uniformValues(asset) ?? const {}).entries)
+              key: json(value),
+          },
+          'overrides': {
+            for (final MapEntry(:key, :value) in overridesFor(asset).entries)
+              key: json(value),
+          },
+        };
+      case ServiceExtensions.setUniformOverride:
+        final asset = _required(parameters, 'asset');
+        final name = _required(parameters, 'name');
+        final values = [
+          for (final text in _required(parameters, 'values').split(','))
+            double.tryParse(text.trim()) ??
+                (throw FormatException('"values" has "$text", not a number.')),
+        ];
+        final rejection = setUniformOverride(asset, name, values);
+        return {'applied': rejection == null, 'reason': rejection?.name};
+      case ServiceExtensions.clearUniformOverrides:
+        clearUniformOverrides(
+          _required(parameters, 'asset'),
+          name: parameters['name'],
+        );
+        return {'applied': true};
       case ServiceExtensions.pickPixel:
         final asset = parameters['asset'];
         if (asset == null) {
@@ -597,6 +695,9 @@ final class ShaderDebugger {
       ServiceExtensions.readPixel,
       ServiceExtensions.setPixelSelectMode,
       ServiceExtensions.pickPixel,
+      ServiceExtensions.getUniforms,
+      ServiceExtensions.setUniformOverride,
+      ServiceExtensions.clearUniformOverrides,
     ]) {
       developer.registerExtension(method, (method, parameters) async {
         try {
@@ -611,6 +712,9 @@ final class ShaderDebugger {
       });
     }
   }
+
+  static String _required(Map<String, String> parameters, String key) =>
+      parameters[key] ?? (throw FormatException('"$key" is required.'));
 
   /// The number [key] in [parameters], or [fallback] when it is missing.
   /// Without a [fallback], it is required.

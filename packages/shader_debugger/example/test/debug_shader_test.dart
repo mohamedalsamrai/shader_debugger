@@ -25,7 +25,8 @@ void main() {
   setUp(() async {
     debugger
       ..probeAsset = goldenProbe
-      ..hideHeatmap();
+      ..hideHeatmap()
+      ..clearUniformOverrides(gradient);
     shader = await DebugShader.fromAsset(gradient);
     shader.getUniformVec2('uSize').set(size.toDouble(), size.toDouble());
     shader.getUniformVec4('uA').set(1, 0, 0, 1);
@@ -113,7 +114,7 @@ void main() {
         'ext.shader_debugger.getInfo',
         {},
       );
-      expect(info['protocolVersion'], 3);
+      expect(info['protocolVersion'], 4);
       expect(info['probeAsset'], goldenProbe);
       expect(info['shaders'], [gradient]);
       expect(info['heatmap'], {
@@ -250,6 +251,123 @@ void main() {
         }),
         throwsFormatException,
       );
+    });
+  });
+
+  group('uniform overrides', () {
+    test(
+      "replace the app's value when drawn; clearing brings it back",
+      () async {
+        expect(
+          debugger.setUniformOverride(gradient, 'uA', [0, 1, 0, 1]),
+          isNull,
+        );
+        var pixels = await render(shader.shader);
+        // mix(green, blue, d) instead of mix(red, blue, d).
+        expectPixel(pixels, 0, 0, [0, 1 - dAt(0, 0), dAt(0, 0)]);
+
+        // The app does not set uA again: its recorded value comes back.
+        debugger.clearUniformOverrides(gradient, name: 'uA');
+        pixels = await render(shader.shader);
+        expectPixel(pixels, 0, 0, [1 - dAt(0, 0), 0, dAt(0, 0)]);
+      },
+    );
+
+    test('reach the probe, in the heatmap and in pixel reads', () async {
+      await show();
+      debugger.setUniformOverride(gradient, 'uSize', [8, 8]);
+      final d8 = math.sqrt(2 * math.pow(3.5 / 8 - 0.5, 2));
+      expectPixel(await render(shader.shader), 3, 3, viridis(d8));
+      final reading = await debugger.readPixel(
+        asset: gradient,
+        stamp: goldenStamp,
+        coord: const Offset(3.5, 3.5),
+      );
+      expect(reading.value![0], closeTo(d8, 1 / 255));
+    });
+
+    test('need a float uniform of that name and component count', () {
+      expect(
+        debugger.setUniformOverride(gradient, 'uNope', [1]),
+        UniformRejection.unknownUniform,
+      );
+      expect(
+        debugger.setUniformOverride(gradient, 'uA', [1, 2]),
+        UniformRejection.unknownUniform,
+      );
+      expect(
+        debugger.setUniformOverride('shaders/other.frag', 'uA', [1, 0, 0, 1]),
+        UniformRejection.noShaderForAsset,
+      );
+      expect(debugger.overridesFor(gradient), isEmpty);
+    });
+
+    test('through the service extensions', () async {
+      Future<Map<String, Object?>> call(
+        String name,
+        Map<String, String> parameters,
+      ) => debugger.handleServiceExtension(
+        'ext.shader_debugger.$name',
+        parameters,
+      );
+
+      expect(await call('getUniforms', {'asset': gradient}), {
+        'values': {
+          'uSize': [4.0, 4.0],
+          'uA': [1.0, 0.0, 0.0, 1.0],
+          'uB': [0.0, 0.0, 1.0, 1.0],
+        },
+        'overrides': <String, Object>{},
+      });
+      expect(
+        await call('setUniformOverride', {
+          'asset': gradient,
+          'name': 'uA',
+          'values': '0, 1, 0, 1',
+        }),
+        {'applied': true, 'reason': null},
+      );
+      expect((await call('getUniforms', {'asset': gradient}))['overrides'], {
+        'uA': [0.0, 1.0, 0.0, 1.0],
+      });
+      expect(
+        await call('setUniformOverride', {
+          'asset': gradient,
+          'name': 'uA',
+          'values': '1',
+        }),
+        {'applied': false, 'reason': 'unknownUniform'},
+      );
+      await expectLater(
+        call('setUniformOverride', {
+          'asset': gradient,
+          'name': 'uA',
+          'values': 'red',
+        }),
+        throwsFormatException,
+      );
+      await call('clearUniformOverrides', {'asset': gradient});
+      expect(
+        (await call('getUniforms', {'asset': gradient}))['overrides'],
+        isEmpty,
+      );
+    });
+
+    testWidgets('repaint what drew the shader', (tester) async {
+      var paints = 0;
+      await tester.pumpWidget(
+        CustomPaint(
+          painter: _ShaderPainter(shader, onPaint: () => paints++),
+          size: const Size(4, 4),
+        ),
+      );
+      expect(paints, 1);
+      debugger.setUniformOverride(gradient, 'uA', [0, 1, 0, 1]);
+      await tester.pump();
+      expect(paints, 2);
+      debugger.clearUniformOverrides(gradient);
+      await tester.pump();
+      expect(paints, 3);
     });
   });
 
@@ -580,14 +698,18 @@ void expectPixel(Uint8List pixels, int x, int y, List<double> rgb) {
 }
 
 class _ShaderPainter extends CustomPainter {
-  _ShaderPainter(this.shader);
+  _ShaderPainter(this.shader, {this.onPaint});
 
   final DebugShader shader;
+  final VoidCallback? onPaint;
 
   @override
-  void paint(Canvas canvas, Size size) =>
-      canvas.drawRect(Offset.zero & size, Paint()..shader = shader.shader);
+  void paint(Canvas canvas, Size size) {
+    onPaint?.call();
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader.shader);
+  }
 
+  // Never asks to repaint: only the debugger does.
   @override
-  bool shouldRepaint(_ShaderPainter oldDelegate) => true;
+  bool shouldRepaint(_ShaderPainter oldDelegate) => false;
 }

@@ -59,6 +59,13 @@ class DebugShader {
   final Map<(String, int), double> _floats = {};
   final Map<String, ui.Image> _images = {};
 
+  /// Slots of the original shader for overrides, by name and component.
+  final Map<(String, int), ui.UniformFloatSlot?> _originalFloats = {};
+
+  /// The components overridden at the last paint, to put the app's values
+  /// back once an override goes.
+  final Set<(String, int)> _overridden = {};
+
   ui.FragmentShader? _probe;
   final Map<(String, int), ui.UniformFloatSlot?> _probeFloats = {};
   final Map<String, ui.ImageSamplerSlot?> _probeSamplers = {};
@@ -74,6 +81,7 @@ class DebugShader {
     assert(!_disposed, 'DebugShader used after dispose: $asset');
     if (!kDebugMode) return _original;
     _notePainter();
+    _applyOverrides();
     final heatmap = ShaderDebugger.instance.heatmapFor(asset);
     if (heatmap == null) return _original;
     final probe = _probe ??= ShaderDebugger.instance.newProbeShader();
@@ -141,11 +149,46 @@ class DebugShader {
       .whereType<RenderBox>()
       .where((box) => box.attached);
 
-  /// Sets the recorded uniforms on [target], a shader from the probe, by
-  /// name. Uniforms the probe does not have are skipped.
+  /// The float uniforms the app set, by name, with their components in
+  /// index order. A component it never set is NaN.
+  @internal
+  Map<String, List<double>> get recordedUniforms {
+    final byName = <String, List<double>>{};
+    for (final MapEntry(key: (name, index), :value) in _floats.entries) {
+      final components = byName.putIfAbsent(name, () => []);
+      while (components.length <= index) {
+        components.add(double.nan);
+      }
+      components[index] = value;
+    }
+    return byName;
+  }
+
+  /// Whether the shader has a float uniform [name] of exactly [count]
+  /// components.
+  @internal
+  bool hasFloatUniform(String name, int count) {
+    if (count < 1) return false;
+    try {
+      _original.getUniformFloat(name, count - 1);
+    } on ArgumentError {
+      return false;
+    }
+    try {
+      _original.getUniformFloat(name, count);
+      return false;
+    } on ArgumentError {
+      return true;
+    }
+  }
+
+  /// Sets the recorded uniforms, with the overrides in force, on [target], a
+  /// shader from the probe, by name. Uniforms the probe does not have are
+  /// skipped.
   @internal
   void replayOnto(ui.FragmentShader target) {
-    for (final MapEntry(key: (name, index), :value) in _floats.entries) {
+    for (final MapEntry(key: (name, index), :value)
+        in _effectiveFloats.entries) {
       try {
         target.getUniformFloat(name, index).set(value);
       } on ArgumentError {
@@ -200,8 +243,51 @@ class DebugShader {
     _images[name] = image.clone();
   }
 
+  /// The recorded floats, with the overrides in force over them.
+  Map<(String, int), double> get _effectiveFloats {
+    final overrides = ShaderDebugger.instance.overridesFor(asset);
+    if (overrides.isEmpty) return _floats;
+    return {
+      ..._floats,
+      for (final MapEntry(key: name, value: values) in overrides.entries)
+        for (final (index, value) in values.indexed) (name, index): value,
+    };
+  }
+
+  /// Puts the overrides in force on the original shader, over the app's
+  /// values, and the app's values back where an override went.
+  void _applyOverrides() {
+    final overrides = ShaderDebugger.instance.overridesFor(asset);
+    if (overrides.isEmpty && _overridden.isEmpty) return;
+    final current = <(String, int)>{};
+    for (final MapEntry(key: name, value: values) in overrides.entries) {
+      for (final (index, value) in values.indexed) {
+        _originalFloat(name, index)?.set(value);
+        current.add((name, index));
+      }
+    }
+    for (final key in _overridden.difference(current)) {
+      if (_floats[key] case final value?) {
+        _originalFloat(key.$1, key.$2)?.set(value);
+      }
+    }
+    _overridden
+      ..clear()
+      ..addAll(current);
+  }
+
+  ui.UniformFloatSlot? _originalFloat(String name, int index) =>
+      _originalFloats.putIfAbsent((name, index), () {
+        try {
+          return _original.getUniformFloat(name, index);
+        } on ArgumentError {
+          return null;
+        }
+      });
+
   void _replay(HeatmapState heatmap) {
-    for (final MapEntry(key: (name, index), :value) in _floats.entries) {
+    for (final MapEntry(key: (name, index), :value)
+        in _effectiveFloats.entries) {
       _probeFloat(name, index)?.set(value);
     }
     for (final MapEntry(key: name, value: image) in _images.entries) {

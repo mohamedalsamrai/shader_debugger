@@ -255,6 +255,38 @@ class _SidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Inspect'),
+              Tab(text: 'Uniforms'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _InspectPanel(controller: controller),
+                _UniformsPanel(controller: controller),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Picking a value, and showing it as a heatmap or at a pixel.
+class _InspectPanel extends StatelessWidget {
+  const _InspectPanel({required this.controller});
+
+  final ShaderDebuggerController controller;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statement = controller.statement;
     return ListView(
@@ -810,6 +842,311 @@ class _PixelResult extends StatelessWidget {
           ],
         );
     }
+  }
+}
+
+/// The shader's uniforms, with the app's live values and overrides. Reads
+/// the values while it is shown.
+class _UniformsPanel extends StatefulWidget {
+  const _UniformsPanel({required this.controller});
+
+  final ShaderDebuggerController controller;
+
+  @override
+  State<_UniformsPanel> createState() => _UniformsPanelState();
+}
+
+class _UniformsPanelState extends State<_UniformsPanel> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.watchUniforms(true);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.watchUniforms(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final theme = Theme.of(context);
+    final uniforms = controller.uniforms;
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Uniforms', style: theme.textTheme.titleSmall),
+            ),
+            TextButton(
+              onPressed: controller.uniformOverrides.isEmpty
+                  ? null
+                  : () => controller.clearUniformOverride(),
+              child: const Text('Reset all'),
+            ),
+          ],
+        ),
+        Text(
+          'Live values from the app. Override one to change it while the app '
+          'runs; the heatmap and pixel reads use it too.',
+          style: theme.textTheme.bodySmall,
+        ),
+        if (controller.uniformsError case final error?) ...[
+          const SizedBox(height: 8),
+          _Error(error),
+        ],
+        if (uniforms.isEmpty && controller.analysis != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: Text('This shader has no uniforms.'),
+          ),
+        for (final uniform in uniforms)
+          _UniformCard(
+            key: ValueKey(uniform.name),
+            controller: controller,
+            uniform: uniform,
+          ),
+      ],
+    );
+  }
+}
+
+class _UniformCard extends StatefulWidget {
+  const _UniformCard({
+    super.key,
+    required this.controller,
+    required this.uniform,
+  });
+
+  final ShaderDebuggerController controller;
+  final ShaderUniform uniform;
+
+  @override
+  State<_UniformCard> createState() => _UniformCardState();
+}
+
+class _UniformCardState extends State<_UniformCard> {
+  final _text = TextEditingController();
+  final _focus = FocusNode();
+  List<double>? _shown;
+
+  /// Each slider's range, set from the value the override started from and
+  /// widened by values typed outside it.
+  List<(double, double)>? _ranges;
+  String? _error;
+
+  ShaderUniform get _uniform => widget.uniform;
+
+  List<double>? get _override =>
+      widget.controller.uniformOverrides[_uniform.name];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_sync);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_sync);
+    _text.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  /// Shows the override's values in the field, unless it is being edited.
+  void _sync() {
+    final values = _override;
+    if (values == null) {
+      _ranges = null;
+      _shown = null;
+      return;
+    }
+    if (_ranges == null || _ranges!.length != values.length) {
+      _ranges = [for (final value in values) _rangeFor(value)];
+    }
+    if (!_focus.hasFocus && !listEquals(values, _shown)) {
+      _shown = values;
+      _text.text = values.map(_formatFloat).join(', ');
+    }
+  }
+
+  static (double, double) _rangeFor(double value) {
+    if (!value.isFinite || (value >= 0 && value <= 1)) return (0, 1);
+    final extent = (value.abs() * 2).ceilToDouble();
+    return value > 0 ? (0, extent) : (-extent, extent);
+  }
+
+  void _start() {
+    final components = _uniform.components!;
+    final app = widget.controller.uniformValues[_uniform.name];
+    widget.controller.setUniformOverride(
+      _uniform.name,
+      app != null && app.length == components
+          ? app
+          : List.filled(components, 0.0),
+    );
+  }
+
+  void _set(int index, double value) {
+    final values = [..._override!];
+    values[index] = value;
+    widget.controller.setUniformOverride(_uniform.name, values);
+  }
+
+  void _apply(String text) {
+    final values = [
+      for (final part in text.split(',')) double.tryParse(part.trim()),
+    ];
+    final components = _uniform.components!;
+    if (values.length != components || values.contains(null)) {
+      setState(
+        () => _error =
+            'Enter $components number${components == 1 ? '' : 's'}, '
+            'separated by commas.',
+      );
+      return;
+    }
+    final numbers = values.cast<double>();
+    setState(() {
+      _error = null;
+      _ranges = [
+        for (final (index, value) in numbers.indexed)
+          switch (_ranges?[index]) {
+            (final low, final high)? => (
+              value < low ? value : low,
+              value > high ? value : high,
+            ),
+            null => _rangeFor(value),
+          },
+      ];
+    });
+    widget.controller.setUniformOverride(_uniform.name, numbers);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final uniform = _uniform;
+    final app = widget.controller.uniformValues[uniform.name];
+    final override = _override;
+    final ranges = _ranges;
+    final color = _colorOf(override ?? app, uniform.type);
+    final String note;
+    if (uniform.components == 0) {
+      note = 'An image, set by the app.';
+    } else if (uniform.components == null) {
+      note = 'Flutter sets only float uniforms and images from Dart.';
+    } else if (app == null) {
+      note = 'Not set by the app yet.';
+    } else {
+      note = 'App: ${app.map(_formatFloat).join(', ')}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(uniform.name, style: theme.fixedFontStyle),
+              const SizedBox(width: 8),
+              Text('${uniform.type}', style: theme.textTheme.bodySmall),
+              if (color != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: color,
+                    border: Border.all(color: theme.colorScheme.outline),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (uniform.canOverride)
+                Tooltip(
+                  message: 'Override',
+                  child: Switch(
+                    value: override != null,
+                    onChanged: (on) => on
+                        ? _start()
+                        : widget.controller.clearUniformOverride(uniform.name),
+                  ),
+                ),
+            ],
+          ),
+          Text(note, style: theme.textTheme.bodySmall),
+          if (override != null && ranges != null) ...[
+            for (final (index, name) in uniform.componentNames.indexed)
+              if (index < override.length)
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 40,
+                      child: Text(name, style: theme.fixedFontStyle),
+                    ),
+                    Expanded(
+                      child: Slider(
+                        value: override[index].clamp(
+                          ranges[index].$1,
+                          ranges[index].$2,
+                        ),
+                        min: ranges[index].$1,
+                        max: ranges[index].$2,
+                        onChanged: (value) => _set(index, value),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 72,
+                      child: Text(
+                        _formatFloat(override[index]),
+                        textAlign: TextAlign.right,
+                        style: theme.fixedFontStyle,
+                      ),
+                    ),
+                  ],
+                ),
+            TextField(
+              controller: _text,
+              focusNode: _focus,
+              decoration: InputDecoration(
+                isDense: true,
+                labelText: 'Values',
+                helperText: 'Comma-separated; Enter applies them.',
+                errorText: _error,
+              ),
+              style: theme.fixedFontStyle,
+              onSubmitted: _apply,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The color a vec3 or vec4 of values between 0 and 1 stands for, if it
+  /// looks like one.
+  static Color? _colorOf(List<double>? values, GlslType type) {
+    if (values == null ||
+        type is! VectorType ||
+        type.size < 3 ||
+        values.length < 3 ||
+        values.any((value) => !(value >= 0 && value <= 1))) {
+      return null;
+    }
+    return Color.from(
+      alpha: values.length > 3 ? values[3] : 1,
+      red: values[0],
+      green: values[1],
+      blue: values[2],
+    );
   }
 }
 

@@ -126,6 +126,18 @@ class FakeApp implements DebuggedApp {
   final pixelCalls =
       <({String asset, int stamp, double x, double y, int? instance})>[];
 
+  /// The app's uniform values, and how many components each has.
+  final uniformValues = <String, List<double>>{
+    'uSize': [400, 300],
+    'uA': [0.1, 0.2, 0.9, 1],
+    'uB': [1, 0.6, 0.1, 1],
+  };
+  final overrides = <String, List<double>>{};
+  final overrideCalls = <(String, List<double>)>[];
+
+  /// While set, setUniformOverride waits for it.
+  Future<void>? holdOverrides;
+
   /// The asset in pixel select mode, while it is on.
   String? selecting;
 
@@ -228,6 +240,37 @@ class FakeApp implements DebuggedApp {
 
   @override
   Stream<void> get pixelSelectModeExits => _exits.stream;
+
+  @override
+  Future<UniformValues> getUniforms(String asset) async => UniformValues(
+    values: Map.of(uniformValues),
+    overrides: Map.of(overrides),
+  );
+
+  @override
+  Future<String?> setUniformOverride({
+    required String asset,
+    required String name,
+    required List<double> values,
+  }) async {
+    overrideCalls.add((name, values));
+    await holdOverrides;
+    if (uniformValues[name]?.length != values.length) return 'unknownUniform';
+    overrides[name] = values;
+    return null;
+  }
+
+  @override
+  Future<void> clearUniformOverrides({
+    required String asset,
+    String? name,
+  }) async {
+    if (name == null) {
+      overrides.clear();
+    } else {
+      overrides.remove(name);
+    }
+  }
 
   @override
   Future<Uri?> rootLibrary() async => mainLibrary;

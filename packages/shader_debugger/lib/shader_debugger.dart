@@ -19,4 +19,9 @@ export 'src/debug_shader.dart'
         DebugUniformVec3,
         DebugUniformVec4;
 export 'src/shader_debugger.dart'
-    show HeatmapState, PixelReading, ProbeRejection, ShaderDebugger;
+    show
+        HeatmapState,
+        PixelReading,
+        ProbeRejection,
+        ShaderDebugger,
+        UniformRejection;

@@ -8,7 +8,7 @@ library;
 
 /// The version of the app ↔ extension protocol. Bump it when a service
 /// extension or a probe uniform changes meaning.
-const int protocolVersion = 3;
+const int protocolVersion = 4;
 
 /// Where the probe shader lives in the app, as an asset key. The app must
 /// register it under `flutter: shaders:` in its pubspec.
@@ -106,6 +106,32 @@ abstract final class ServiceExtensions {
   ///
   /// Parameters: `asset`, `x` and `y`.
   static const String pickPixel = '$prefix.pickPixel';
+
+  /// The float uniforms the app sets on its `DebugShader`s for an asset,
+  /// and the overrides in force.
+  ///
+  /// Parameters: `asset`. Answers `{"values": {name: [floats]}, "overrides":
+  /// {name: [floats]}}`, components in the order of `getUniformFloat`'s
+  /// index (column-major for matrices). Values are the app's own, from the
+  /// first `DebugShader` for the asset; a uniform the app never set is
+  /// missing. Non-finite floats come as strings, as in [readPixel].
+  static const String getUniforms = '$prefix.getUniforms';
+
+  /// Overrides a float uniform of every `DebugShader` for an asset: the
+  /// value replaces the app's on every paint, and in the probe, until
+  /// cleared.
+  ///
+  /// Parameters: `asset`, `name`, and `values`, the components as
+  /// comma-separated numbers. Answers `{"applied": true}`, or `applied`
+  /// false with the `reason` `unknownUniform` when the shader has no float
+  /// uniform `name` with that many components, or `noShaderForAsset`.
+  static const String setUniformOverride = '$prefix.setUniformOverride';
+
+  /// Drops overrides, so the app's own values apply again.
+  ///
+  /// Parameters: `asset`, and optionally `name`; without it, every override
+  /// for the asset goes.
+  static const String clearUniformOverrides = '$prefix.clearUniformOverrides';
 }
 
 /// The events the runtime package posts on the VM service's Extension
