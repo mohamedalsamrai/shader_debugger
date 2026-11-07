@@ -17,6 +17,9 @@ import '../model/glsl_type.dart';
 import '../model/shader_analysis.dart';
 import '../model/statement_info.dart';
 import '../model/symbols.dart';
+import '../parse/lexer.dart';
+import '../parse/preprocessor.dart' show runtimeEffectInclude;
+import '../parse/token.dart';
 
 /// What to capture: a variable as it is at one statement, optionally
 /// narrowed to a part of it (a matrix column, an array element, a field).
@@ -134,16 +137,18 @@ Probe instrument(
   }
 
   final text = analysis.source.getText(0);
-  final headerEnd = _headerEnd(text);
+  final tokens = tokenize(text).tokens;
+  final headerEnd = _headerEnd(text, tokens);
   final edits = <_Edit>[
     _Edit(mainSpan.start.offset, mainSpan.end.offset, '_dbg_main'),
   ];
 
+  // Every use in user code, including inside #define bodies.
   var usesFragCoord = false;
-  for (final (offset, name) in _identifiers(text, from: headerEnd)) {
-    if (name == 'FlutterFragCoord') {
+  for (final token in tokens) {
+    if (token.offset >= headerEnd && token.isWord('FlutterFragCoord')) {
       usesFragCoord = true;
-      edits.add(_Edit(offset, offset + name.length, '_dbg_fragCoord'));
+      edits.add(_Edit(token.offset, token.end, '_dbg_fragCoord'));
     }
   }
 
@@ -265,57 +270,35 @@ void main() {
 }
 ''';
 
-final _includeLine = RegExp(
-  r'^[ \t]*#[ \t]*include[ \t]*<flutter/runtime_effect\.glsl>[^\n]*',
-  multiLine: true,
-);
-final _versionLine = RegExp(r'^[ \t]*#[ \t]*version\b[^\n]*', multiLine: true);
-
-/// The offset after the `runtime_effect.glsl` include, or else after
-/// `#version`, or else 0. The probe's declarations go there, ahead of any
-/// user code that refers to them.
-int _headerEnd(String text) =>
-    (_includeLine.firstMatch(text) ?? _versionLine.firstMatch(text))?.end ?? 0;
-
-/// Identifiers in [text] from offset [from], skipping comments and numbers.
-///
-/// Stands in for the tokenizer until the M1 parser exists.
-Iterable<(int, String)> _identifiers(String text, {required int from}) sync* {
-  var i = from;
-  while (i < text.length) {
-    final c = text.codeUnitAt(i);
-    final next = i + 1 < text.length ? text.codeUnitAt(i + 1) : 0;
-    if (c == 0x2F && next == 0x2F) {
-      final newline = text.indexOf('\n', i);
-      i = newline < 0 ? text.length : newline;
-    } else if (c == 0x2F && next == 0x2A) {
-      final close = text.indexOf('*/', i + 2);
-      i = close < 0 ? text.length : close + 2;
-    } else if (_isIdentifierStart(c)) {
-      final start = i;
-      while (i < text.length && _isIdentifierPart(text.codeUnitAt(i))) {
-        i++;
+/// The end of the line holding the runtime_effect include, or else the
+/// `#version` line, or else 0. The probe's declarations go there, ahead of
+/// any user code that refers to them.
+int _headerEnd(String text, List<Token> tokens) {
+  int? lineEnd(bool Function(List<Token> words) matches) {
+    for (var i = 0; i < tokens.length; i++) {
+      if (!tokens[i].isPunctuation('#') || !tokens[i].firstOnLine) continue;
+      var j = i + 1;
+      while (j < tokens.length && !tokens[j].firstOnLine) {
+        j++;
       }
-      yield (start, text.substring(start, i));
-    } else if (_isDigit(c)) {
-      // Skip a number with its exponent or suffix, such as 1.5e3 or 0x1Fu.
-      while (i < text.length &&
-          (_isIdentifierPart(text.codeUnitAt(i)) ||
-              text.codeUnitAt(i) == 0x2E)) {
-        i++;
+      if (matches(tokens.sublist(i + 1, j))) {
+        final newline = text.indexOf('\n', tokens[j - 1].end);
+        return newline < 0 ? text.length : newline;
       }
-    } else {
-      i++;
     }
+    return null;
   }
+
+  return lineEnd(
+        (words) =>
+            words.isNotEmpty &&
+            words.first.isWord('include') &&
+            words.skip(1).map((t) => t.text).join() ==
+                '<$runtimeEffectInclude>',
+      ) ??
+      lineEnd((words) => words.isNotEmpty && words.first.isWord('version')) ??
+      0;
 }
-
-bool _isDigit(int c) => c >= 0x30 && c <= 0x39;
-
-bool _isIdentifierStart(int c) =>
-    (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) || c == 0x5F;
-
-bool _isIdentifierPart(int c) => _isIdentifierStart(c) || _isDigit(c);
 
 /// A replacement of `[start, end)` with [replacement]; an insertion when
 /// `start == end`.

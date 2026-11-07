@@ -13,6 +13,7 @@ export 'package:source_span/source_span.dart'
     show FileLocation, FileSpan, SourceFile;
 
 export 'protocol.dart';
+export 'src/analyze.dart';
 export 'src/instrument/instrumenter.dart';
 export 'src/model/glsl_type.dart';
 export 'src/model/shader_analysis.dart';
