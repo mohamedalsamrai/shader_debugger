@@ -1,5 +1,5 @@
-/// The symbol table: scopes and the symbols declared in them (design doc §5,
-/// step 3).
+/// The symbol table: scopes and the symbols declared in them ("The analyzer"
+/// in docs/architecture.md).
 ///
 /// Scopes nest global → function → block. Each declaration becomes a
 /// [GlslSymbol] with an id, a name, a type and the scope that declares it.

@@ -1,4 +1,5 @@
-/// Per-statement facts for the variable picker (design doc §5, step 4).
+/// Per-statement facts for the variable picker ("The analyzer" in
+/// docs/architecture.md).
 library;
 
 import 'package:source_span/source_span.dart';

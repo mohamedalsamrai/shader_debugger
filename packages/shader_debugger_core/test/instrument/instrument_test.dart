@@ -14,7 +14,7 @@ const goldenProbePath =
     '../shader_debugger/example/test/probes/gradient_capture_d.frag';
 
 void main() {
-  group('the design doc example, capturing d', () {
+  group('the example shader, capturing d', () {
     late GradientFixture f;
     late Probe probe;
 

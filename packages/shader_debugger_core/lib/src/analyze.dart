@@ -11,13 +11,13 @@ import 'parse/resolver.dart';
 export 'parse/preprocessor.dart' show IncludeResolver;
 
 /// Analyzes a Flutter fragment shader: preprocess, parse, then resolve
-/// (design doc §5).
+/// ("The analyzer" in docs/architecture.md).
 ///
 /// [url] names the file in spans and diagnostics. The
 /// `flutter/runtime_effect.glsl` include is understood without help; other
 /// includes are read through [resolveInclude], and without it they are
-/// reported and skipped. [defines] adds macros, as if `#define`d before the first line;
-/// `IMPELLER_GRAPHICS_BACKEND` is always defined.
+/// reported and skipped. [defines] adds macros, as if `#define`d before the
+/// first line; `IMPELLER_GRAPHICS_BACKEND` is always defined.
 ///
 /// Never throws for bad input: problems become [ShaderAnalysis.diagnostics],
 /// and statements the analyzer does not understand are not pickable.

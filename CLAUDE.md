@@ -3,7 +3,12 @@
 Flutter shader debugger: pick a variable in a Flutter fragment shader (`.frag`)
 and see it as a live heatmap in the running app, or read its exact value at a
 pixel. It ships as a DevTools extension plus a debug-only runtime package. The
-design, research, decisions and status are in docs/design.md:
+architecture, decisions, status and next steps are in docs/architecture.md:
+
+@docs/architecture.md
+
+The maintainer's private notes (motivation, landscape research) are in
+docs/design.md, which is git-ignored and may not exist in your checkout:
 
 @docs/design.md
 
@@ -25,7 +30,7 @@ resolves against the root `pubspec.lock`.
   `extension/devtools/` holds `config.yaml` and the compiled extension in
   `build/` (git-ignored, kept for publishing by `.pubignore`).
 - `packages/shader_debugger/example/`: demo app and the runtime's tests.
-  `shaders/gradient.frag` is the design doc's example shader;
+  `shaders/gradient.frag` is the example shader the docs use;
   `shaders/_debug/probe.frag` is the placeholder probe the extension
   overwrites. `test/probes/gradient_capture_d.frag` is the instrumenter's
   golden output, which the runtime tests draw.

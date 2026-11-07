@@ -3,7 +3,7 @@
 /// It runs on tokens, so every token it outputs keeps an offset in the
 /// analyzed file: its own for source tokens, the macro use's for macro
 /// output, and the `#include` line's for included tokens. That is the source
-/// map back to the original lines (design doc §5, step 1).
+/// map back to the original lines.
 library;
 
 import 'package:source_span/source_span.dart';

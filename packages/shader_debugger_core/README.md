@@ -9,12 +9,12 @@ command-line tool.
 
 | Type | What it is |
 |---|---|
-| `analyzeShader()` | Preprocess, parse and resolve a shader (design doc §5). Never throws; problems become diagnostics. |
-| `GlslType` | The GLSL types Flutter shaders use, and how the probe shows each one (design doc §5, "Type → visualization"). |
+| `analyzeShader()` | Preprocess, parse and resolve a shader ("The analyzer" in docs/architecture.md). Never throws; problems become diagnostics. |
+| `GlslType` | The GLSL types Flutter shaders use, and how the probe shows each one ("Type → visualization" in docs/architecture.md). |
 | `SymbolTable`, `Scope`, `GlslSymbol` | Scopes (global → function → block) and declarations, with GLSL's visibility rules. |
 | `StatementInfo` | What a statement writes, and what is in scope where its value is captured. |
 | `ShaderAnalysis` | Everything the variable picker needs from one `.frag` file. |
-| `instrument()`, `CaptureRequest`, `Probe` | Probe generation (design doc §4). |
+| `instrument()`, `CaptureRequest`, `Probe` | Probe generation ("Probes" in docs/architecture.md). |
 
 The instrumenter (`instrument()`) turns an analysis and a picked variable
 into a probe shader. `lib/protocol.dart` holds the names it shares with the

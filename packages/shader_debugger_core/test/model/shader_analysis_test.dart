@@ -8,7 +8,7 @@ List<String> names(Iterable<GlslSymbol> symbols) => [
 ];
 
 void main() {
-  group('the design doc example', () {
+  group('the example shader', () {
     late GradientFixture f;
     late ShaderAnalysis analysis;
 

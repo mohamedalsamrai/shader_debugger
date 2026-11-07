@@ -1,4 +1,4 @@
-/// Generates probe shaders (design doc §4, "Instrumentation rules").
+/// Generates probe shaders ("Probes" in docs/architecture.md).
 ///
 /// A probe is the user's shader, edited as text so it stays readable:
 ///

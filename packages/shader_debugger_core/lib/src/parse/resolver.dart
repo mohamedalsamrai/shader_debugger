@@ -1,5 +1,6 @@
 /// Turns the syntax tree into a [ShaderAnalysis]: the symbol table and the
-/// facts about each statement (design doc §5, steps 3 and 4).
+/// facts about each statement ("The analyzer" in
+/// docs/architecture.md).
 library;
 
 import 'package:source_span/source_span.dart';

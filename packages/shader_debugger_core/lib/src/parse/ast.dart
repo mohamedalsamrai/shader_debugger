@@ -1,5 +1,5 @@
 /// The syntax tree of a GLSL shader. Every node knows its first and last
-/// token, which place it in the analyzed file (design doc §5, step 2).
+/// token, which place it in the analyzed file (see docs/architecture.md).
 library;
 
 import 'token.dart';

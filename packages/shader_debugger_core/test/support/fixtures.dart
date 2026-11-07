@@ -7,7 +7,7 @@ library;
 
 import 'package:shader_debugger_core/shader_debugger_core.dart';
 
-/// The design doc's example shader (§4), completed into a full file. It
+/// The example shader from docs/architecture.md, as a full file. It
 /// matches `example/shaders/gradient.frag` in package:shader_debugger, minus
 /// that file's header comment.
 const gradientSource = '''

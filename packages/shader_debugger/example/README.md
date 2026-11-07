@@ -1,8 +1,8 @@
 # shader_debugger_example
 
 Demo app for the Flutter shader debugger. It draws
-[`shaders/gradient.frag`](shaders/gradient.frag), the example shader from the
-design doc.
+[`shaders/gradient.frag`](shaders/gradient.frag), the example shader that
+[docs/architecture.md](../../../docs/architecture.md) uses.
 
 ```sh
 flutter run -d macos   # or any device; Flutter web is out of scope

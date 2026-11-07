@@ -46,7 +46,7 @@ void main() {
     });
   });
 
-  group('visualization (design doc §5)', () {
+  group('visualization', () {
     test('scalars are one channel; int and bool too, after a cast', () {
       for (final type in [
         GlslType.floatType,
@@ -90,7 +90,7 @@ void main() {
   });
 
   group('widenToVec4', () {
-    test('matches the design doc example for a float', () {
+    test('matches the documented example for a float', () {
       expect(GlslType.floatType.widenToVec4('d'), 'vec4(d, 0.0, 0.0, 1.0)');
     });
 

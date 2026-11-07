@@ -4,8 +4,8 @@ Debug-only runtime for the Flutter shader debugger. Add it to an app to get the
 Shader Debugger tab in DevTools.
 
 **Status: M2 in progress.** The runtime side of heatmap mode works; the
-DevTools extension's side waits for the parser. See the
-[design doc](../../docs/design.md).
+DevTools extension's side is next. See
+[docs/architecture.md](../../docs/architecture.md).
 
 ## Use
 

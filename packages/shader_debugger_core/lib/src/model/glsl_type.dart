@@ -2,9 +2,9 @@
 ///
 /// The model covers what Flutter fragment shaders use: scalars, vectors,
 /// matrices, `sampler2D`, arrays and structs. Besides naming types, it answers
-/// the questions from design doc §5 ("Type → visualization"): can the probe
-/// draw a value of this type directly, and if not, what must the picker ask
-/// for first?
+/// the questions in "Type → visualization" (docs/architecture.md): can the
+/// probe draw a value of this type directly, and if not, what must the picker
+/// ask for first?
 library;
 
 /// The component kind shared by a scalar type and the vectors built from it.
