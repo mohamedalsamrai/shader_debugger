@@ -92,19 +92,22 @@ void main() {
   });
 
   group('capture placement', () {
-    test('wraps an expression statement so the capture stays in its branch', () {
-      final f = GradientFixture();
-      final probe = instrument(
-        f.analysis,
-        CaptureRequest(statement: f.outputStatement, variable: f.fragColor),
-        stamp: 2,
-      );
-      expect(
-        probe.source,
-        contains('{ fragColor = vec4(col, 1.0); _dbg_value = fragColor; }'),
-      );
-      expect(probe.visualization, Visualization.rgba);
-    });
+    test(
+      'wraps an expression statement so the capture stays in its branch',
+      () {
+        final f = GradientFixture();
+        final probe = instrument(
+          f.analysis,
+          CaptureRequest(statement: f.outputStatement, variable: f.fragColor),
+          stamp: 2,
+        );
+        expect(
+          probe.source,
+          contains('{ fragColor = vec4(col, 1.0); _dbg_value = fragColor; }'),
+        );
+        expect(probe.visualization, Visualization.rgba);
+      },
+    );
 
     test('captures before a jump', () {
       final f = BranchyFixture();
@@ -150,7 +153,10 @@ void main() {
       );
       expect(probe.request.expression, 'col[1]');
       expect(probe.valueType, GlslType.floatType);
-      expect(probe.source, contains('_dbg_value = vec4(col[1], 0.0, 0.0, 1.0);'));
+      expect(
+        probe.source,
+        contains('_dbg_value = vec4(col[1], 0.0, 0.0, 1.0);'),
+      );
     });
 
     test('draws vectors without the colormap', () {

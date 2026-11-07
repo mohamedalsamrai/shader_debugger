@@ -12,10 +12,15 @@ command-line tool.
 | `SymbolTable`, `Scope`, `GlslSymbol` | Scopes (global → function → block) and declarations, with GLSL's visibility rules. |
 | `StatementInfo` | What a statement writes, and what is in scope where its value is captured. |
 | `ShaderAnalysis` | Everything the variable picker needs from one `.frag` file. |
+| `instrument()`, `CaptureRequest`, `Probe` | Probe generation (design doc §4). |
 
-Next: the preprocessor, the parser, a resolver that fills the model, and the
-instrumenter. `test/model/shader_analysis_test.dart` builds by hand the
-analysis the resolver must produce for the design doc's example shader.
+The instrumenter (`instrument()`) turns an analysis and a picked variable
+into a probe shader. `lib/protocol.dart` holds the names it shares with the
+runtime package.
+
+Next: the preprocessor, the parser, and a resolver that fills the model.
+`test/support/fixtures.dart` builds by hand the analyses the resolver must
+produce.
 
 ```sh
 dart test

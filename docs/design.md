@@ -234,6 +234,10 @@ Checked on Nov 7, 2026 against the Flutter 3.47.8 sources.
 - `DebugShader` must replay uniforms on every paint, not once, because a reload zeroes them.
 - Version stamp: `getUniformFloat(name)` throws `ArgumentError` for an unknown name. Put the stamp in a debug uniform's name (for example `_dbg_stamp_42`) and the app can tell which probe is loaded without reading the asset. impellerc keeps a declared uniform in the reflection data even when the shader never reads it (checked with `--reflection-json`), so the stamp uniform can stay unused.
 
+**Confirmed end to end** (Nov 7, 2026, macOS, Impeller; `tool/e2e_heatmap.py`)
+- After writing a new probe, the hot reload (`app.restart`) takes about 0.2 s, and the new stamp is already visible on the first `showHeatmap` call after it returns.
+- A probe that does not compile makes the hot reload fail with "DevFS synchronization failed". The previous probe stays loaded and still works.
+
 **API assumptions verified** (Flutter 3.47.8, devtools_app_shared 0.5.1)
 - `FragmentShader.getUniformFloat`, `getUniformVec2/3/4`, `getUniformMat2/3/4`, uniform arrays and `ImageSamplerSlot` exist.
 - `Picture.toImageSync(w, h, targetFormat: TargetPixelFormat.rgbaFloat32)` exists.
@@ -246,11 +250,13 @@ Done (Nov 7, 2026):
 - Scaffolded the repo as a pub workspace: `shader_debugger_core`, `shader_debugger` (runtime, with `example/`) and `shader_debugger_devtools` (the extension).
 - Wrote the M1 data model with unit tests: `GlslType`, `SymbolTable` / `Scope` / `GlslSymbol`, `StatementInfo` and `ShaderAnalysis`.
 
-Next (M1):
-- Preprocessor with a source map: `#define`, and the `runtime_effect.glsl` stub.
-- Tokenizer and parser. Every AST node carries a span.
-- A resolver that fills the data model. `test/model/shader_analysis_test.dart` already spells out its expected output for the §4 example.
-- Instrumenter.
+Started M2 (Nov 7, 2026), with the parts that do not need the parser:
+- Instrumenter (`instrument()` in core). It works from the data model, so it runs on hand-built analyses until the parser exists. Every probe variant in the tests compiles with impellerc for macOS and Android.
+- Runtime: `DebugShader` (records uniforms by name, swaps in the probe), `ShaderDebugger` (probe program, stamp check, `ext.shader_debugger.getInfo` / `showHeatmap` / `hideHeatmap`). Tested against real shader execution in the example app, and end to end through the Flutter tool with `tool/e2e_heatmap.py`.
+
+Next:
+- M1: preprocessor with a source map (`#define`, the `runtime_effect.glsl` stub), tokenizer and parser, and a resolver that fills the data model. `test/support/fixtures.dart` in core spells out its expected output; the instrumenter's identifier scan should then move to the tokenizer.
+- M2, extension side (needs the parser): read the `.frag` through DTD, variable picker, write the probe, `performHotReload`, then `showHeatmap` with retries; range controls.
 
 ---
 

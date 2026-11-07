@@ -202,7 +202,8 @@ Probe instrument(
   );
 }
 
-const _fragCoordFunction = '''
+const _fragCoordFunction =
+    '''
 
 vec2 _dbg_fragCoord() {
   return ${ProbeUniforms.mode} > 0.5 ? ${ProbeUniforms.coord} : FlutterFragCoord();

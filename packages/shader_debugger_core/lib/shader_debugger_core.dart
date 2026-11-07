@@ -1,8 +1,9 @@
 /// Pure-Dart core of the Flutter shader debugger.
 ///
 /// It turns a Flutter fragment shader (`.frag`) into the facts the variable
-/// picker needs: types, scopes, symbols and what each statement writes. The
-/// preprocessor, parser and instrumenter build on this model.
+/// picker needs: types, scopes, symbols and what each statement writes, and
+/// [instrument] turns a picked variable into a probe shader. The
+/// preprocessor and parser that fill the model come next.
 ///
 /// It has no `dart:io` or Flutter dependency, so it runs both in the DevTools
 /// extension (Flutter web) and in a command-line tool.

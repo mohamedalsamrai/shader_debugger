@@ -174,14 +174,26 @@ class GradientFixture {
       main,
       writes: [uv],
     );
-    final d = b.declare(main, 'd', GlslType.floatType, VariableKind.local, dLine);
+    final d = b.declare(
+      main,
+      'd',
+      GlslType.floatType,
+      VariableKind.local,
+      dLine,
+    );
     final dStatement = b.statement(
       StatementKind.declaration,
       dLine,
       main,
       writes: [d],
     );
-    final col = b.declare(main, 'col', GlslType.vec3, VariableKind.local, colLine);
+    final col = b.declare(
+      main,
+      'col',
+      GlslType.vec3,
+      VariableKind.local,
+      colLine,
+    );
     final colStatement = b.statement(
       StatementKind.declaration,
       colLine,
@@ -256,7 +268,13 @@ class BranchyFixture {
     );
     final main = b.defineVoidFunction('main');
     const aLine = 'float a = FlutterFragCoord().x / uSize.x;';
-    final a = b.declare(main, 'a', GlslType.floatType, VariableKind.local, aLine);
+    final a = b.declare(
+      main,
+      'a',
+      GlslType.floatType,
+      VariableKind.local,
+      aLine,
+    );
     final aStatement = b.statement(
       StatementKind.declaration,
       aLine,
@@ -273,7 +291,13 @@ class BranchyFixture {
       ),
     );
     const bLine = 'float b = a * 2.0;';
-    final bVar = b.declare(main, 'b', GlslType.floatType, VariableKind.local, bLine);
+    final bVar = b.declare(
+      main,
+      'b',
+      GlslType.floatType,
+      VariableKind.local,
+      bLine,
+    );
     final bStatement = b.statement(
       StatementKind.declaration,
       bLine,

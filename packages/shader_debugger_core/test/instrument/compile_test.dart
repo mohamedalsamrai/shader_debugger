@@ -114,7 +114,8 @@ void main() {
         expect(
           result.exitCode,
           0,
-          reason: '${result.stdout}\n${result.stderr}\n--- probe ---\n'
+          reason:
+              '${result.stdout}\n${result.stderr}\n--- probe ---\n'
               '${probe.source}',
         );
       });
@@ -127,10 +128,11 @@ File? _findImpellerc() {
     'flutter',
   ]);
   if (which.exitCode != 0) return null;
-  final flutter = File(
-    (which.stdout as String).trim().split('\n').first,
-  ).resolveSymbolicLinksSync();
-  final engine = Directory('${File(flutter).parent.path}/cache/artifacts/engine');
+  final flutter = File((which.stdout as String).trim().split('\n').first)
+      .resolveSymbolicLinksSync();
+  final engine = Directory(
+    '${File(flutter).parent.path}/cache/artifacts/engine',
+  );
   final host = Platform.isMacOS
       ? 'darwin-x64'
       : Platform.isWindows

@@ -12,26 +12,39 @@ design, research, decisions and status are in docs/design.md:
 This is a pub workspace. Run `flutter pub get` once at the root; every package
 resolves against the root `pubspec.lock`.
 
-- `packages/shader_debugger_core/`: pure Dart. The M1 data model is in
-  `lib/src/model/` (GLSL types, symbol table, per-statement facts). The
-  preprocessor, parser, resolver and instrumenter go next to it. No `dart:io`,
-  `dart:ui` or Flutter imports in `lib/`, because it is compiled into the web
-  extension.
-- `packages/shader_debugger/`: the Flutter runtime (debug only; a scaffold
-  until M2). `extension/devtools/` holds `config.yaml` and the compiled
-  extension in `build/` (git-ignored, kept for publishing by `.pubignore`).
-- `packages/shader_debugger/example/`: demo app. `shaders/gradient.frag` is the
-  design doc's example shader. `shaders/_debug/probe.frag` is the placeholder
-  probe that the extension overwrites.
+- `packages/shader_debugger_core/`: pure Dart. `lib/src/model/` is the data
+  model (GLSL types, symbol table, per-statement facts);
+  `lib/src/instrument/` generates probes from it. `lib/protocol.dart` holds the
+  names shared with the runtime (probe uniforms, service extensions) and has
+  no dependencies. The preprocessor, parser and resolver go next to these. No
+  `dart:io`, `dart:ui` or Flutter imports in `lib/`, because it is compiled
+  into the web extension.
+- `packages/shader_debugger/`: the Flutter runtime, debug only. `DebugShader`
+  records uniforms and swaps in the probe; `ShaderDebugger` owns the probe
+  program and the `ext.shader_debugger.*` service extensions.
+  `extension/devtools/` holds `config.yaml` and the compiled extension in
+  `build/` (git-ignored, kept for publishing by `.pubignore`).
+- `packages/shader_debugger/example/`: demo app and the runtime's tests.
+  `shaders/gradient.frag` is the design doc's example shader;
+  `shaders/_debug/probe.frag` is the placeholder probe the extension
+  overwrites. `test/probes/gradient_capture_d.frag` is the instrumenter's
+  golden output, which the runtime tests draw.
 - `packages/shader_debugger_devtools/`: the DevTools extension (Flutter web; a
-  placeholder until M2).
+  placeholder until the parser exists).
+- `tool/e2e_heatmap.py`: end-to-end check through the real Flutter tool on
+  macOS (write probe, hot reload, service extensions).
 
 ## Commands
 
 ```sh
 flutter pub get                       # at the root
 flutter analyze                       # at the root: analyzes every package
-(cd packages/shader_debugger_core && dart test)
+(cd packages/shader_debugger_core && dart test)   # includes impellerc compile checks
+(cd packages/shader_debugger/example && flutter test)   # runtime, real shaders
+python3 tool/e2e_heatmap.py [SCREENSHOT_DIR]            # end to end, macOS
+
+# After changing the instrumenter's output, regenerate the golden probe
+(cd packages/shader_debugger_core && UPDATE_GOLDENS=1 dart test test/instrument)
 
 # DevTools extension, from packages/shader_debugger_devtools
 flutter run -d chrome --dart-define=use_simulated_environment=true
@@ -61,9 +74,13 @@ OUT="$(mktemp -d)"
 - The parser is not a validator; impellerc is. For a construct it does not
   understand, set `StatementInfo.unsupportedReason` and add a `Diagnostic`.
   Never fail the whole file.
-- `test/model/shader_analysis_test.dart` is the contract for the resolver.
-  Once the parser exists, the same assertions should hold for the analysis
-  parsed from the same source.
+- `test/support/fixtures.dart` in core is the contract for the resolver: the
+  hand-built analyses there are what parsing the same sources must produce.
+- Probes are edited copies of the user's source, never re-printed from an AST.
+  Every capture variant must compile with impellerc (`compile_test.dart`).
+- `DebugShader` offers only the name-based uniform API: the probe adds its own
+  uniforms, so values are replayed by name, never by float index. A hot
+  reload zeroes uniforms, so replay happens on every read of `shader`.
 - Never copy code from glslgen (AGPL-3.0).
 - Generated shader identifiers use the `_dbg_` prefix, and debug uniforms go at
   the end of the file.

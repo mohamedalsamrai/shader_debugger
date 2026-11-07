@@ -8,16 +8,16 @@ It ships as a DevTools extension plus a debug-only runtime package. Outside
 Flutter, the closest tools are Xcode's Metal shader debugger, RenderDoc, Shader
 Studio and webgl-shader-editor.
 
-**Status: early development.** Milestone M1, the pure-Dart core, is in
-progress, and nothing is published yet. The [design doc](docs/design.md)
+**Status: early development.** M1 (the pure-Dart core) and M2 (heatmap mode)
+are in progress, and nothing is published yet. The [design doc](docs/design.md)
 covers the architecture, the plan and the open questions.
 
 ## Packages
 
 | Package | What it is | Status |
 |---|---|---|
-| [`shader_debugger_core`](packages/shader_debugger_core) | Pure Dart: GLSL model, parser and probe instrumenter. | Data model done |
-| [`shader_debugger`](packages/shader_debugger) | Debug-only runtime. It also ships the DevTools extension. | Scaffold |
+| [`shader_debugger_core`](packages/shader_debugger_core) | Pure Dart: GLSL model, parser and probe instrumenter. | Data model and instrumenter done |
+| [`shader_debugger`](packages/shader_debugger) | Debug-only runtime. It also ships the DevTools extension. | Heatmap runtime works |
 | [`shader_debugger_devtools`](packages/shader_debugger_devtools) | The DevTools extension (Flutter web). | Placeholder |
 | [`example`](packages/shader_debugger/example) | Demo app that draws the design doc's example shader. | Runs (checked on macOS) |
 
