@@ -101,7 +101,9 @@ abstract final class ServiceEvents {
   /// A pixel was picked after [ServiceExtensions.pickPixel].
   ///
   /// Data: `asset`, and either `instance`, `x` and `y` (the shader
-  /// coordinates of the device pixel tapped, at its center), or a `reason`:
-  /// `notOnShader` when the tap missed every `DebugShader` for the asset.
+  /// coordinates of the device pixel tapped, at its center) with `width` and
+  /// `height` (the size of the box the shader was painted in), or a
+  /// `reason`: `notOnShader` when the tap missed every `DebugShader` for the
+  /// asset.
   static const String pixelPicked = 'shader_debugger.pixelPicked';
 }

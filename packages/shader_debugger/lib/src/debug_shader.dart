@@ -47,9 +47,9 @@ class DebugShader {
 
   static int _lastId = 0;
 
-  /// Tells this shader apart from others for the same [asset], in the
-  /// service extensions.
-  @internal
+  /// Tells this shader apart from others for the same [asset]: a pixel
+  /// picked in the app names the instance under it, and
+  /// [ShaderDebugger.readPixel] reads with that instance's uniforms.
   final int debugId = ++_lastId;
 
   /// The render boxes that painted with [shader] lately, most recent first.

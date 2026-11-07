@@ -6,7 +6,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_debugger/shader_debugger.dart';
 
@@ -111,7 +112,7 @@ void main() {
         'ext.shader_debugger.getInfo',
         {},
       );
-      expect(info['protocolVersion'], 1);
+      expect(info['protocolVersion'], 2);
       expect(info['probeAsset'], goldenProbe);
       expect(info['shaders'], [gradient]);
       expect(info['heatmap'], {
@@ -167,6 +168,223 @@ void main() {
     extra.dispose();
     expect(debugger.shaders, isNot(contains(extra)));
   });
+
+  group('readPixel', () {
+    // The test engine rounds to 8 bits; Impeller reads exact floats.
+    const tolerance = 1 / 255;
+
+    Future<List<double>> read(
+      Offset coord, {
+      int stamp = goldenStamp,
+      int? instance,
+    }) async {
+      final reading = await debugger.readPixel(
+        asset: gradient,
+        stamp: stamp,
+        coord: coord,
+        instance: instance,
+      );
+      expect(reading.rejection, isNull);
+      return reading.value!;
+    }
+
+    test(
+      'reads the captured value at a coordinate, without a heatmap',
+      () async {
+        final value = await read(const Offset(0.5, 0.5));
+        // d widened to vec4(d, 0, 0, 1); w comes from the second pass.
+        expect(value[0], closeTo(dAt(0, 0), tolerance));
+        expect(value.sublist(1), [0.0, 0.0, 1.0]);
+        expect(
+          (await read(const Offset(3.5, 0.5)))[0],
+          closeTo(dAt(3, 0), tolerance),
+        );
+        expect(debugger.heatmap, isNull);
+      },
+    );
+
+    test("uses the uniforms of the instance it is given", () async {
+      final wide = await DebugShader.fromAsset(gradient);
+      addTearDown(wide.dispose);
+      wide.getUniformVec2('uSize').set(8, 8);
+      const coord = Offset(3.5, 3.5);
+      final d8 = math.sqrt(2 * math.pow(3.5 / 8 - 0.5, 2));
+      expect(
+        (await read(coord, instance: wide.debugId))[0],
+        closeTo(d8, tolerance),
+      );
+      expect(
+        (await read(coord, instance: shader.debugId))[0],
+        closeTo(dAt(3, 3), tolerance),
+      );
+    });
+
+    test('rejects like showHeatmap', () async {
+      final stale = await debugger.readPixel(
+        asset: gradient,
+        stamp: 2,
+        coord: Offset.zero,
+      );
+      expect(stale.rejection, ProbeRejection.probeNotLoaded);
+      final other = await debugger.readPixel(
+        asset: 'shaders/other.frag',
+        stamp: goldenStamp,
+        coord: Offset.zero,
+      );
+      expect(other.rejection, ProbeRejection.noShaderForAsset);
+    });
+
+    test('the service extension takes string parameters', () async {
+      final answer = await debugger.handleServiceExtension(
+        'ext.shader_debugger.readPixel',
+        {'asset': gradient, 'stamp': '$goldenStamp', 'x': '0.5', 'y': '0.5'},
+      );
+      expect(answer['applied'], isTrue);
+      expect((answer['value']! as List)[0], closeTo(dAt(0, 0), tolerance));
+      expect(
+        debugger.handleServiceExtension('ext.shader_debugger.readPixel', {
+          'asset': gradient,
+          'stamp': '$goldenStamp',
+          'x': '0.5',
+        }),
+        throwsFormatException,
+      );
+    });
+  });
+
+  group('picking a pixel', () {
+    // The gradient is painted 4x4 at (10, 20), at 2 device pixels per
+    // logical pixel; a second instance with another uSize at (30, 20).
+    const origin = Offset(10, 20);
+    late DebugShader second;
+    final events = <Map<Object?, Object?>>[];
+
+    setUp(() async {
+      second = await DebugShader.fromAsset(gradient);
+      second.getUniformVec2('uSize').set(8, 8);
+      events.clear();
+      debugger.postEvent = (kind, data) {
+        expect(kind, 'shader_debugger.pixelPicked');
+        events.add(data);
+      };
+    });
+
+    tearDown(() {
+      debugger.cancelPick();
+      second.dispose();
+    });
+
+    Future<void> pumpShaders(WidgetTester tester) async {
+      tester.view
+        ..physicalSize = const Size(200, 100)
+        ..devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            children: [
+              for (final (left, debugShader) in [
+                (10.0, shader),
+                (30.0, second),
+              ])
+                Positioned(
+                  left: left,
+                  top: origin.dy,
+                  width: size.toDouble(),
+                  height: size.toDouble(),
+                  child: CustomPaint(painter: _ShaderPainter(debugShader)),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    testWidgets('maps a position to the device pixel center in the shader', (
+      tester,
+    ) async {
+      await pumpShaders(tester);
+      // 12.3 * 2 = 24.6 -> device pixel 24, center 24.5 -> 12.25 -> 2.25.
+      expect(debugger.pickAt(gradient, const Offset(12.3, 21.7)), {
+        'asset': gradient,
+        'instance': shader.debugId,
+        'x': 2.25,
+        'y': 1.75,
+        'width': 4.0,
+        'height': 4.0,
+      });
+      expect(
+        debugger.pickAt(gradient, const Offset(31, 21))['instance'],
+        second.debugId,
+      );
+      expect(debugger.pickAt(gradient, const Offset(20, 21)), {
+        'asset': gradient,
+        'reason': 'notOnShader',
+      });
+    });
+
+    testWidgets('waits for one tap, and reports it as an event', (
+      tester,
+    ) async {
+      await pumpShaders(tester);
+      debugger.pickPixel(gradient);
+      await tester.tapAt(const Offset(12.3, 21.7));
+      expect(events, [
+        {
+          'asset': gradient,
+          'instance': shader.debugId,
+          'x': 2.25,
+          'y': 1.75,
+          'width': 4.0,
+          'height': 4.0,
+        },
+      ]);
+      await tester.tapAt(const Offset(31, 21));
+      expect(events, hasLength(1), reason: 'only the first tap is picked');
+    });
+
+    testWidgets('the picked value is the one drawn there', (tester) async {
+      await pumpShaders(tester);
+      await tester.runAsync(show);
+      await tester.pump();
+      const position = Offset(13.3, 22.8);
+      final pick = debugger.pickAt(gradient, position);
+      final reading = (await tester.runAsync(
+        () => debugger.readPixel(
+          asset: gradient,
+          stamp: goldenStamp,
+          coord: Offset(pick['x']! as double, pick['y']! as double),
+          instance: pick['instance']! as int,
+        ),
+      ))!;
+      // The heatmap pixel on screen, at the same device pixel.
+      final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
+      final pixel = (await tester.runAsync(() async {
+        final image = await layer.toImage(
+          Rect.fromLTWH(
+            (position.dx * 2).floorToDouble(),
+            (position.dy * 2).floorToDouble(),
+            1,
+            1,
+          ),
+        );
+        final bytes = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        image.dispose();
+        return bytes!.buffer.asUint8List();
+      }))!;
+      final expected = viridis(reading.value![0]);
+      for (var c = 0; c < 3; c++) {
+        expect(
+          (pixel[c] - expected[c] * 255).abs(),
+          lessThanOrEqualTo(3),
+          reason: 'screen $pixel, colormap of ${reading.value} is $expected',
+        );
+      }
+    });
+  });
 }
 
 /// The value of `d` in gradient.frag at pixel (x, y), sampled at its center.
@@ -218,4 +436,17 @@ void expectPixel(Uint8List pixels, int x, int y, List<double> rgb) {
       reason: 'pixel ($x, $y): got $actual, expected $expected',
     );
   }
+}
+
+class _ShaderPainter extends CustomPainter {
+  _ShaderPainter(this.shader);
+
+  final DebugShader shader;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      canvas.drawRect(Offset.zero & size, Paint()..shader = shader.shader);
+
+  @override
+  bool shouldRepaint(_ShaderPainter oldDelegate) => true;
 }

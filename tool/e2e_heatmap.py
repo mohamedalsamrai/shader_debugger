@@ -14,6 +14,7 @@ heatmap is shown (needs the Screen Recording permission). Exits non-zero if a
 check fails.
 """
 import json
+import math
 import os
 import queue
 import subprocess
@@ -143,6 +144,27 @@ try:
     check('heatmap shown for stamp 2', result.get('applied'), '%s after %d attempt(s)' % (result, attempts))
     heatmap = extension('getInfo').get('heatmap') or {}
     check('getInfo reports the heatmap', heatmap.get('stamp') == 2, heatmap)
+
+    # Pixel inspector: pick a point the way a tap does, then read d there.
+    pick = extension('pickPixel', asset=ASSET, x=100.3, y=80.7)
+    check('pickPixel maps a position into the shader',
+          'instance' in pick and abs(pick['x'] - 100.3) <= 0.5 and abs(pick['y'] - 80.7) <= 0.5, pick)
+    miss = extension('pickPixel', asset=ASSET, x=-5, y=-5)
+    check('a position off the shader is reported', miss.get('reason') == 'notOnShader', miss)
+    if 'instance' in pick:
+        reading = extension('readPixel', asset=ASSET, stamp=2, x=pick['x'], y=pick['y'],
+                            instance=pick['instance'])
+        # The example sets uSize to the painted size.
+        u = pick['x'] / pick['width'] - 0.5
+        v = pick['y'] / pick['height'] - 0.5
+        expected = math.sqrt(u * u + v * v)
+        value = reading.get('value') or [float('nan')] * 4
+        # 8-bit readback would be off by up to 1/510; float32 is ~1e-7.
+        check('readPixel reads d as a 32-bit float',
+              reading.get('applied') and abs(value[0] - expected) < 1e-5 and value[1:] == [0.0, 0.0, 1.0],
+              'read %r, expected d = %.9f' % (value, expected))
+        stale = extension('readPixel', asset=ASSET, stamp=1, x=pick['x'], y=pick['y'])
+        check('readPixel checks the stamp', stale.get('reason') == 'probeNotLoaded', stale)
 
     broken = golden.replace('_dbg_stamp_1', '_dbg_stamp_3').replace('length(', 'lenth(')
     reload = hot_reload_with(broken)

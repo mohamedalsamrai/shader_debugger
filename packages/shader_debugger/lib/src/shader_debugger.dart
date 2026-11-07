@@ -243,6 +243,8 @@ final class ShaderDebugger {
       'instance': owners[box]!.debugId,
       'x': local.dx,
       'y': local.dy,
+      'width': box.size.width,
+      'height': box.size.height,
     };
   }
 
