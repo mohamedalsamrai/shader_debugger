@@ -10,8 +10,11 @@ void main() {
   late FakeWorkspace workspace;
   late FakeApp app;
 
-  Future<ShaderDebuggerController> pumpScreen(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
+  Future<ShaderDebuggerController> pumpScreen(
+    WidgetTester tester, {
+    double height = 800,
+  }) async {
+    tester.view.physicalSize = Size(1200, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final controller = ShaderDebuggerController(
@@ -80,22 +83,43 @@ void main() {
     expect(find.text('Check'), findsOneWidget);
   });
 
-  testWidgets('composite values are listed but cannot be picked', (
-    tester,
-  ) async {
-    workspace.files[gradientFile] = gradientSource.replaceFirst(
-      '  vec3 col',
-      '  mat2 m = mat2(1.0);\n  vec3 col',
-    );
+  testWidgets('picks a part of a composite value and shows it', (tester) async {
+    workspace.files[gradientFile] = compositeSource;
     app.runtime.value = true;
-    await pumpScreen(tester);
+    // Tall enough for the side panel to show the status under its buttons.
+    await pumpScreen(tester, height: 1100);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('  vec3 col = mix(uA.rgb, uB.rgb, d);'));
+    await tester.tap(
+      find.text('  lights[1] = Light(spin * uv, vec3(weights[2]));'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Part'), findsOneWidget);
+    expect(find.text('lights[1].position · vec2'), findsOneWidget);
+
+    // Pick the color field instead.
+    await tester.tap(find.text('.position'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('.color').last);
+    await tester.pumpAndSettle();
+    expect(find.text('lights[1].color · vec3'), findsOneWidget);
+
+    await tester.tap(find.text('Show heatmap'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('pick a column: not supported yet'),
+      find.textContaining('Showing lights[1].color (vec3, rgb)'),
       findsOneWidget,
     );
+
+    // A matrix: pick its second column.
+    await tester.tap(find.text('spin'));
+    await tester.pumpAndSettle();
+    expect(find.text('spin[0] · vec2'), findsOneWidget);
+    await tester.tap(find.text('[0]'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('[1]').last);
+    await tester.pumpAndSettle();
+    expect(find.text('spin[1] · vec2'), findsOneWidget);
+    expect(find.textContaining('Showing spin[1] (vec2, rg)'), findsOneWidget);
   });
 
   testWidgets('a failed connection can be retried', (tester) async {

@@ -284,6 +284,10 @@ class _SidePanel extends StatelessWidget {
               selected: variable == controller.variable,
               onTap: () => controller.selectVariable(variable),
             ),
+          if (controller.path.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _PartPicker(controller: controller),
+          ],
         ],
         const SizedBox(height: 12),
         _RangeEditor(controller: controller),
@@ -343,13 +347,7 @@ class _VariableTile extends StatelessWidget {
       '$type',
       variable.kind.name,
       if (written) 'written here',
-      if (!capturable)
-        switch (type.selectorKind) {
-          SelectorKind.column => 'pick a column: not supported yet',
-          SelectorKind.element => 'pick an element: not supported yet',
-          SelectorKind.field => 'pick a field: not supported yet',
-          null => 'cannot be shown',
-        },
+      if (!capturable) 'cannot be shown',
     ];
     return ListTile(
       dense: true,
@@ -363,6 +361,116 @@ class _VariableTile extends StatelessWidget {
       title: Text(variable.name, style: Theme.of(context).fixedFontStyle),
       subtitle: Text(details.join(' · ')),
       onTap: onTap,
+    );
+  }
+}
+
+/// Picks the part of a composite value to show: a column, element or field
+/// at each step, down to a part the probe can draw.
+class _PartPicker extends StatelessWidget {
+  const _PartPicker({required this.controller});
+
+  final ShaderDebuggerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final code = theme.fixedFontStyle;
+    final variable = controller.variable!;
+    final path = controller.path;
+    final steps = <Widget>[];
+    for (final (depth, step) in path.indexed) {
+      final type = controller.typeAt(depth)!;
+      final choices = type.selectorChoices;
+      steps.add(
+        choices.isNotEmpty
+            ? DropdownButton<Selector>(
+                value: step,
+                isDense: true,
+                style: code,
+                items: [
+                  for (final choice in choices)
+                    DropdownMenuItem(value: choice, child: Text('$choice')),
+                ],
+                onChanged: (choice) {
+                  if (choice != null) controller.selectStep(depth, choice);
+                },
+              )
+            // An array of unknown length: any index.
+            : _IndexField(
+                key: ValueKey((variable, path.take(depth + 1).join())),
+                index: (step as IndexSelector).index,
+                onSubmitted: (index) =>
+                    controller.selectStep(depth, IndexSelector(index)),
+              ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Part', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(variable.name, style: code),
+            ...steps,
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${controller.expression} · ${controller.valueType}',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+/// An index typed by hand, for an array whose length the analyzer could not
+/// work out.
+class _IndexField extends StatefulWidget {
+  const _IndexField({
+    super.key,
+    required this.index,
+    required this.onSubmitted,
+  });
+
+  final int index;
+  final ValueChanged<int> onSubmitted;
+
+  @override
+  State<_IndexField> createState() => _IndexFieldState();
+}
+
+class _IndexFieldState extends State<_IndexField> {
+  late final _text = TextEditingController(text: '${widget.index}');
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 64,
+      child: TextField(
+        controller: _text,
+        decoration: const InputDecoration(
+          isDense: true,
+          prefixText: '[',
+          suffixText: ']',
+        ),
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onSubmitted: (text) {
+          final index = int.tryParse(text);
+          if (index != null) widget.onSubmitted(index);
+        },
+      ),
     );
   }
 }

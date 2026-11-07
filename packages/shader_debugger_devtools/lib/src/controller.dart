@@ -91,12 +91,11 @@ class ShaderDebuggerController extends ChangeNotifier {
   List<Selector> _path = const [];
 
   /// The GLSL expression shown, such as `lights[1].color`.
-  String? get expression => _variable == null
-      ? null
-      : _path.fold(
-          _variable!.name,
-          (expression, step) => step.applyTo(expression),
-        );
+  String? get expression {
+    final name = _variable?.name;
+    if (name == null) return null;
+    return _path.fold<String>(name, (text, step) => step.applyTo(text));
+  }
 
   /// The type of the part shown.
   GlslType? get valueType => _variable?.type.selectPath(_path);

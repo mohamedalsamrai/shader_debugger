@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shader_debugger_core/shader_debugger_core.dart';
 import 'package:shader_debugger_devtools/src/controller.dart';
 import 'package:shader_debugger_devtools/src/ports.dart';
 
@@ -222,6 +223,82 @@ void main() {
       await showing;
       expect(controller.status, HeatmapStatus.off);
       expect(app.shown, isNull);
+    });
+  });
+
+  group('composite values', () {
+    int line(String text) => lineOf(text, compositeSource);
+    VariableSymbol inScope(String name) =>
+        controller.statement!.inScope.firstWhere((v) => v.name == name);
+
+    setUp(() async {
+      workspace.files[gradientFile] = compositeSource;
+      await connect();
+    });
+
+    test('a line that writes an element selects that element', () {
+      controller.selectLine(line('weights[2] ='));
+      expect(controller.variable?.name, 'weights');
+      expect(controller.path, [const IndexSelector(2)]);
+      expect(controller.expression, 'weights[2]');
+      expect(controller.valueType, GlslType.floatType);
+      expect(controller.canShow, isTrue);
+    });
+
+    test('a struct goes on to its first drawable field', () {
+      controller.selectLine(line('lights[1] ='));
+      expect(controller.expression, 'lights[1].position');
+      expect(controller.typeAt(0), isA<ArrayType>());
+      expect(controller.typeAt(1)?.name, 'Light');
+    });
+
+    test('another variable starts at its first drawable part', () {
+      controller
+        ..selectLine(line('lights[1] ='))
+        ..selectVariable(inScope('spin'));
+      expect(controller.expression, 'spin[0]');
+      expect(controller.valueType, GlslType.vec2);
+      controller.selectVariable(inScope('uv'));
+      expect(controller.path, isEmpty);
+      expect(controller.expression, 'uv');
+    });
+
+    test('changing a step picks the first drawable part below it', () {
+      controller
+        ..selectLine(line('lights[1] ='))
+        ..selectStep(1, const FieldSelector('color'));
+      expect(controller.expression, 'lights[1].color');
+      controller.selectStep(0, const IndexSelector(0));
+      expect(controller.expression, 'lights[0].position');
+
+      // Steps that do not apply change nothing.
+      controller
+        ..selectStep(0, const IndexSelector(5))
+        ..selectStep(1, const FieldSelector('radius'))
+        ..selectStep(2, const IndexSelector(0));
+      expect(controller.expression, 'lights[0].position');
+    });
+
+    test('the probe captures the part', () async {
+      controller.selectLine(line('lights[1] ='));
+      await controller.showHeatmap();
+      expect(
+        workspace.files[probeFile],
+        contains('_dbg_value = vec4(lights[1].position, 0.0, 1.0); }'),
+      );
+      expect(controller.status, HeatmapStatus.shown);
+      expect(controller.shownProbe?.request.expression, 'lights[1].position');
+      expect(controller.shownProbe?.valueType, GlslType.vec2);
+    });
+
+    test('changing a step while shown updates the heatmap', () async {
+      controller.selectLine(line('lights[1] ='));
+      await controller.showHeatmap();
+      controller.selectStep(1, const FieldSelector('color'));
+      await pumpEventQueue();
+      expect(controller.status, HeatmapStatus.shown);
+      expect(controller.shownProbe?.request.expression, 'lights[1].color');
+      expect(app.reloads, 2);
     });
   });
 }

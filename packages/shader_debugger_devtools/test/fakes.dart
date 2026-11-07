@@ -30,13 +30,35 @@ void main() {
 }
 ''';
 
-/// The 0-based line of [text] in [gradientSource].
-int lineOf(String text) =>
-    gradientSource
-        .substring(0, gradientSource.indexOf(text))
-        .split('\n')
-        .length -
-    1;
+/// A matrix, an array and an array of structs, each written in part.
+const compositeSource = '''
+#version 460 core
+
+#include <flutter/runtime_effect.glsl>
+
+uniform vec2 uSize;
+
+out vec4 fragColor;
+
+struct Light {
+  vec2 position;
+  vec3 color;
+};
+
+void main() {
+  vec2 uv = FlutterFragCoord().xy / uSize;
+  mat2 spin = mat2(uv.x, uv.y, -uv.y, uv.x);
+  float weights[3];
+  weights[2] = uv.y;
+  Light lights[2];
+  lights[1] = Light(spin * uv, vec3(weights[2]));
+  fragColor = vec4(lights[1].color, 1.0);
+}
+''';
+
+/// The 0-based line of [text] in [source].
+int lineOf(String text, [String source = gradientSource]) =>
+    source.substring(0, source.indexOf(text)).split('\n').length - 1;
 
 class FakeWorkspace implements Workspace {
   final files = <Uri, String>{
