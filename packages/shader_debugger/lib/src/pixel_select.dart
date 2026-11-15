@@ -1,12 +1,12 @@
 /// The overlay of pixel select mode ([ShaderDebugger.setPixelSelectMode]),
 /// modeled on the widget inspector's select mode: it covers the app and takes
-/// its clicks, highlights the pixel under the pointer, and reports each click
-/// to DevTools until it is turned off.
+/// its clicks and taps, highlights the pixel under the pointer or finger, and
+/// reports each pick to DevTools until it is turned off.
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'shader_debugger.dart';
@@ -24,13 +24,26 @@ class PixelSelectLayer extends StatefulWidget {
 }
 
 class _PixelSelectLayerState extends State<PixelSelectLayer> {
+  /// The pixel under the pointer: the mouse's, or a finger's while it is down.
   PixelTarget? _hovered;
   PixelTarget? _selected;
+
+  /// The pointer pressed on the overlay, which picks where it lifts.
+  int? _pressed;
+
+  /// Whether [_hovered] is under a finger, which would hide a label beside it.
+  bool _underFinger = false;
 
   /// Where this layer is, globally; targets are in global coordinates.
   Offset _origin = Offset.zero;
 
   int get _viewId => View.of(context).viewId;
+
+  static const _fingers = {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+  };
 
   void _updateOrigin() {
     final box = context.findRenderObject();
@@ -39,31 +52,57 @@ class _PixelSelectLayerState extends State<PixelSelectLayer> {
     }
   }
 
-  void _hover(PointerHoverEvent event) {
+  /// Shows the pixel under [event]'s position, without picking it.
+  void _aim(PointerEvent event) {
     final asset = widget.debugger.pixelSelectAsset;
     if (asset == null) return;
     _updateOrigin();
-    setState(
-      () => _hovered = widget.debugger.pixelTargetAt(
+    setState(() {
+      _hovered = widget.debugger.pixelTargetAt(
         asset,
         event.position,
         viewId: _viewId,
-      ),
-    );
+      );
+      _underFinger = _fingers.contains(event.kind);
+    });
   }
 
-  void _click(TapUpDetails details) {
+  void _down(PointerDownEvent event) {
+    if (_pressed != null || event.buttons & kPrimaryButton == 0) return;
+    _pressed = event.pointer;
+    _aim(event);
+  }
+
+  /// A finger, or a mouse with its button down, aims until it lifts.
+  void _move(PointerMoveEvent event) {
+    if (event.pointer == _pressed) _aim(event);
+  }
+
+  /// Picks the pixel where the pressed pointer lifts: a click or a tap, or
+  /// the end of a drag that aimed at it.
+  void _up(PointerUpEvent event) {
+    if (event.pointer != _pressed) return;
+    _pressed = null;
     _updateOrigin();
-    final target = widget.debugger.selectPixel(
-      details.globalPosition,
-      viewId: _viewId,
-    );
-    if (target != null) setState(() => _selected = target);
+    final target = widget.debugger.selectPixel(event.position, viewId: _viewId);
+    setState(() {
+      if (target != null) _selected = target;
+      // A lifted finger points at nothing; a mouse goes on hovering.
+      if (_fingers.contains(event.kind)) _hovered = null;
+    });
+  }
+
+  void _cancel(PointerCancelEvent event) {
+    if (event.pointer != _pressed) return;
+    _pressed = null;
+    if (_fingers.contains(event.kind)) setState(() => _hovered = null);
   }
 
   @override
   Widget build(BuildContext context) {
     final asset = widget.debugger.pixelSelectAsset ?? '';
+    // Keeps the banner clear of notches and the home indicator.
+    final safe = MediaQuery.maybePaddingOf(context) ?? EdgeInsets.zero;
     return _HiddenFromPixelHitTest(
       debugger: widget.debugger,
       child: Directionality(
@@ -81,25 +120,29 @@ class _PixelSelectLayerState extends State<PixelSelectLayer> {
             children: [
               MouseRegion(
                 cursor: SystemMouseCursors.precise,
-                onHover: _hover,
+                onHover: _aim,
                 onExit: (_) => setState(() => _hovered = null),
-                child: GestureDetector(
+                child: Listener(
                   // Takes every click, tap, drag and scroll from the app.
                   behavior: HitTestBehavior.opaque,
-                  onTapUp: _click,
+                  onPointerDown: _down,
+                  onPointerMove: _move,
+                  onPointerUp: _up,
+                  onPointerCancel: _cancel,
                   child: CustomPaint(
                     painter: _PixelSelectPainter(
                       hovered: _hovered,
                       selected: _selected,
                       origin: _origin,
+                      underFinger: _underFinger,
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: 16,
-                right: 16,
-                bottom: 24,
+                left: 16 + safe.left,
+                right: 16 + safe.right,
+                bottom: 24 + safe.bottom,
                 child: Center(
                   child: _Banner(
                     asset: asset,
@@ -122,6 +165,16 @@ class _Banner extends StatelessWidget {
   final String asset;
   final VoidCallback onDone;
 
+  /// What picks a pixel on this platform.
+  static String get _verb => switch (defaultTargetPlatform) {
+    TargetPlatform.iOS ||
+    TargetPlatform.android ||
+    TargetPlatform.fuchsia => 'tap',
+    TargetPlatform.macOS ||
+    TargetPlatform.linux ||
+    TargetPlatform.windows => 'click',
+  };
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -138,7 +191,9 @@ class _Banner extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  'Shader Debugger: click a pixel of $asset',
+                  'Shader Debugger: $_verb a pixel of $asset',
+                  // A phone is too narrow for one line with the asset.
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -168,20 +223,28 @@ class _Banner extends StatelessWidget {
 }
 
 /// The shader's area, and a crosshair on the device pixel: blue under the
-/// pointer, amber where last clicked.
+/// pointer or finger, amber where last picked.
 class _PixelSelectPainter extends CustomPainter {
   _PixelSelectPainter({
     required this.hovered,
     required this.selected,
     required this.origin,
+    required this.underFinger,
   });
 
   static const hoverColor = Color(0xFF42A5F5);
   static const selectedColor = Color(0xFFFFB300);
 
+  /// How far a label stays from a finger's contact point: about a
+  /// fingertip, the size of a minimum touch target on iOS.
+  static const fingerClearance = 44.0;
+
   final PixelTarget? hovered;
   final PixelTarget? selected;
   final Offset origin;
+
+  /// Whether [hovered] is under a finger: its label then goes above it.
+  final bool underFinger;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -194,10 +257,18 @@ class _PixelSelectPainter extends CustomPainter {
         selectedColor,
         visible,
         label: hovered == null,
+        aboveFinger: false,
       );
     }
     if (hovered case final target?) {
-      _paintTarget(canvas, target, hoverColor, visible, label: true);
+      _paintTarget(
+        canvas,
+        target,
+        hoverColor,
+        visible,
+        label: true,
+        aboveFinger: underFinger,
+      );
     }
   }
 
@@ -207,6 +278,7 @@ class _PixelSelectPainter extends CustomPainter {
     Color color,
     Rect visible, {
     required bool label,
+    required bool aboveFinger,
   }) {
     final bounds = target.bounds;
     final center = target.center;
@@ -248,10 +320,17 @@ class _PixelSelectPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..color = color,
       );
-    if (label) _paintLabel(canvas, target, visible);
+    if (label) {
+      _paintLabel(canvas, target, visible, aboveFinger: aboveFinger);
+    }
   }
 
-  void _paintLabel(Canvas canvas, PixelTarget target, Rect visible) {
+  void _paintLabel(
+    Canvas canvas,
+    PixelTarget target,
+    Rect visible, {
+    required bool aboveFinger,
+  }) {
     final text = TextPainter(
       text: TextSpan(
         text: '${_format(target.coord.dx)}, ${_format(target.coord.dy)}',
@@ -260,14 +339,27 @@ class _PixelSelectPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     final size = Size(text.width + 8, text.height + 4);
-    // Below and to the right of the pixel, or flipped to stay visible.
-    var left = target.center.dx + 10;
-    var top = target.center.dy + 10;
-    if (left + size.width > visible.right) {
-      left = target.center.dx - 10 - size.width;
-    }
-    if (top + size.height > visible.bottom) {
-      top = target.center.dy - 10 - size.height;
+    final center = target.center;
+    double left;
+    double top;
+    if (aboveFinger) {
+      // Centered above the finger, which hides what is below and beside it;
+      // below only when there is no room above.
+      left = center.dx - size.width / 2;
+      if (left + size.width > visible.right) left = visible.right - size.width;
+      if (left < visible.left) left = visible.left;
+      top = center.dy - fingerClearance - size.height;
+      if (top < visible.top) top = center.dy + fingerClearance;
+    } else {
+      // Below and to the right of the pixel, or flipped to stay visible.
+      left = center.dx + 10;
+      top = center.dy + 10;
+      if (left + size.width > visible.right) {
+        left = center.dx - 10 - size.width;
+      }
+      if (top + size.height > visible.bottom) {
+        top = center.dy - 10 - size.height;
+      }
     }
     final box = Offset(left, top) & size;
     canvas.drawRRect(
@@ -290,7 +382,8 @@ class _PixelSelectPainter extends CustomPainter {
   bool shouldRepaint(_PixelSelectPainter oldDelegate) =>
       oldDelegate.hovered != hovered ||
       oldDelegate.selected != selected ||
-      oldDelegate.origin != origin;
+      oldDelegate.origin != origin ||
+      oldDelegate.underFinger != underFinger;
 }
 
 /// Lets [ShaderDebugger.pixelTargetAt]'s hit test through to the app below,

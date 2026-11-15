@@ -1,6 +1,7 @@
 """End-to-end check of the app side, through the real Flutter tool.
 
-Runs the example app on macOS with `flutter run --machine`, writes probes into
+Runs the example app with `flutter run --machine` (on macOS unless a device is
+given), writes probes into
 shaders/_debug/probe.frag, hot reloads, and drives the ext.shader_debugger.*
 service extensions the way the DevTools extension does: heatmaps, and picking
 and reading a pixel (which must come back as an exact 32-bit float). The probe
@@ -8,12 +9,16 @@ is the instrumenter's golden output (example/test/probes/gradient_capture_d.frag
 The placeholder probe is restored at the end.
 
 Usage, from the repo root:
-    python3 tool/e2e_heatmap.py [SCREENSHOT_DIR]
+    python3 tool/e2e_heatmap.py [-d DEVICE] [SCREENSHOT_DIR]
 
-With SCREENSHOT_DIR, it also saves the app window before and after the
-heatmap is shown (needs the Screen Recording permission). Exits non-zero if a
-check fails.
+DEVICE is what `flutter run -d` takes: `macos` (the default), or an iOS
+simulator or device by name or id (`flutter devices` lists them).
+
+With SCREENSHOT_DIR, it also saves the app before and after the heatmap is
+shown: the window on macOS (needs the Screen Recording permission), the
+screen on an iOS simulator. Exits non-zero if a check fails.
 """
+import argparse
 import json
 import math
 import os
@@ -28,7 +33,11 @@ EXAMPLE = os.path.join(ROOT, 'packages', 'shader_debugger', 'example')
 PROBE = os.path.join(EXAMPLE, 'shaders', '_debug', 'probe.frag')
 GOLDEN = os.path.join(EXAMPLE, 'test', 'probes', 'gradient_capture_d.frag')
 ASSET = 'shaders/gradient.frag'
-SHOTS = sys.argv[1] if len(sys.argv) > 1 else None
+arguments = argparse.ArgumentParser(description='End-to-end check of the app side.')
+arguments.add_argument('-d', '--device', default='macos', help='as for flutter run -d (default: macos)')
+arguments.add_argument('screenshots', nargs='?', metavar='SCREENSHOT_DIR')
+arguments = arguments.parse_args()
+SHOTS = arguments.screenshots
 
 placeholder = open(PROBE).read()
 golden = open(GOLDEN).read()
@@ -42,7 +51,7 @@ def check(label, ok, detail):
 
 
 proc = subprocess.Popen(
-    ['flutter', 'run', '-d', 'macos', '--machine'],
+    ['flutter', 'run', '-d', arguments.device, '--machine'],
     cwd=EXAMPLE, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT, text=True, bufsize=1)
 events = queue.Queue()
@@ -58,6 +67,7 @@ def pump():
 threading.Thread(target=pump, daemon=True).start()
 next_id = [0]
 app_id = None
+device_id = None
 
 
 def wait(predicate, timeout=300):
@@ -111,13 +121,20 @@ def screenshot(name):
     if not SHOTS:
         return
     os.makedirs(SHOTS, exist_ok=True)
+    path = os.path.join(SHOTS, name)
+    if device_id != 'macos':
+        # An iOS simulator, by its id; other devices fail here.
+        shot = subprocess.run(['xcrun', 'simctl', 'io', device_id or '', 'screenshot', path],
+                              capture_output=True, text=True)
+        print('      screenshot: ' + path if shot.returncode == 0
+              else '      (no screenshot: only macOS and iOS simulators are captured)')
+        return
     script = ('ObjC.import("CoreGraphics");'
               'var l=ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo(1,0)));'
               'var w=l.filter(function(x){return x.kCGWindowOwnerName=="shader_debugger_example"'
               '&&x.kCGWindowLayer==0;})[0];w?w.kCGWindowNumber:"";')
     window = subprocess.run(['osascript', '-l', 'JavaScript', '-e', script],
                             capture_output=True, text=True).stdout.strip()
-    path = os.path.join(SHOTS, name)
     if window and subprocess.run(['screencapture', '-x', '-o', '-l' + window, path]).returncode == 0:
         print('      screenshot: ' + path)
     else:
@@ -125,6 +142,7 @@ def screenshot(name):
 
 
 try:
+    device_id = wait(lambda m: m.get('event') == 'app.start')['params']['deviceId']
     app_id = wait(lambda m: m.get('event') == 'app.started')['params']['appId']
     time.sleep(2)
 

@@ -80,8 +80,14 @@ developer's own hot reloads do not fail on the broken one.
    - It takes every click, tap, drag and scroll, so none reach the app.
    - Hovering a `DebugShader` for the asset outlines the area it painted,
      draws a crosshair on the device pixel under the pointer, and labels it
-     with its shader coordinates. The last pixel clicked stays marked.
-   - Each click maps to the topmost render box that painted the shader,
+     with its shader coordinates. The last pixel picked stays marked.
+   - On a touch screen there is no hover: a finger shows the same while it
+     is down, with the label above it so the finger does not hide it, and
+     the pixel is picked where it lifts. A tap picks at once; a drag aims
+     first. A mouse picks where its button is released, too.
+   - The banner says "tap" on iOS and Android and "click" on desktops, and
+     keeps clear of the safe area (notches, the home indicator).
+   - Each pick maps to the topmost render box that painted the shader,
      moves to the center of its device pixel, and converts to the box's
      local coordinates: what `FlutterFragCoord()` returns there. They are
      posted, with the instance and the box's size, as a
@@ -105,7 +111,7 @@ developer's own hot reloads do not fail on the broken one.
 3. **Two passes:** pixel modes write an alpha of 1, so that alpha never scales
    the color: `_dbg_mode` 1 writes x, y and z, and 2 writes w.
 
-Checked on macOS with Impeller: the read is exact (`d` came back as the
+Checked on macOS and the iOS simulator with Impeller: the read is exact (`d` came back as the
 float32 of its true value, and values outside 0..1 are not clamped). The
 default target format, and renderers that ignore `rgbaFloat32` (Skia, the
 engine `flutter test` uses), round to 8 bits per channel. So the runtime
@@ -289,7 +295,7 @@ cannot fold takes any index, typed by hand.
 ## Shader hot reload
 
 Checked against the Flutter 3.47.8 sources and confirmed end to end on macOS
-with Impeller (`tool/e2e_heatmap.py`).
+and the iOS simulator with Impeller (`tool/e2e_heatmap.py`).
 
 **The Flutter tool** (`flutter_tools`: `devfs.dart`, `resident_runner.dart`,
 `build_system/tools/shader_compiler.dart`)
@@ -345,18 +351,19 @@ with Impeller (`tool/e2e_heatmap.py`).
 
 ## Status
 
-Released as 1.0.0 (protocol version 5). Verified on macOS with Impeller;
-iOS, Android, Windows and Linux are untested so far. CI
+Released as 1.0.0 (protocol version 5). Verified on macOS and the iOS
+simulator with Impeller (Metal); physical iOS devices, Android, Windows and
+Linux are untested so far. CI
 (`.github/workflows/ci.yml`) runs the analyzer, the formatter, every test,
 the extension build and the publish dry runs on macOS; `tool/e2e_heatmap.py`
-needs a desktop session and runs by hand.
+needs a desktop session (or a simulator, with `-d`) and runs by hand.
 
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 | Core: analyzer, symbols, instrumenter, with tests. No Flutter needed. | Done |
 | M2 | Heatmap mode end to end | Built. Verified end to end through a real Dart Tooling Daemon and `flutter run`; the DevTools page itself still needs a check in a browser. |
-| M3 | Pixel inspector | Built. Verified end to end on macOS with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. Select mode's overlay is shown in the real app, and picking sees the shader under it. The page still needs a check in a browser. |
-| M4 | Uniform overrides with generated sliders | Built. Verified end to end on macOS: overriding `uSize` moves `d` through the probe, and clearing it brings the app's value back. The Uniforms tab still needs a check in a browser. |
+| M3 | Pixel inspector | Built. Verified end to end on macOS and the iOS simulator with Impeller (`tool/e2e_heatmap.py`): a pick lands on the device pixel's center, and `readPixel` returns `d` as the exact float32. Select mode's overlay is shown in the real app, and picking sees the shader under it. On the iOS simulator, a touch dragged over the shader shows its pixel and picks it on lifting. The page still needs a check in a browser. |
+| M4 | Uniform overrides with generated sliders | Built. Verified end to end on macOS and the iOS simulator: overriding `uSize` moves `d` through the probe, and clearing it brings the app's value back. The Uniforms tab still needs a check in a browser. |
 
 **M2's extension side** (`packages/shader_debugger_devtools`):
 - `ShaderDebuggerController` runs the flow: find the app's package directory
@@ -381,13 +388,15 @@ needs a desktop session and runs by hand.
 - `ports.dart` abstracts the app and the files. `devtools_ports.dart` is the
   only code that uses DevTools' globals, so the controller and the page are
   tested with fakes. `test/live_test.dart` runs the controller against a real
-  session from `tool/devtools_session.py`.
+  session from `tool/devtools_session.py`, on macOS or an iOS simulator.
 
 **Next:**
 - Check the page in a real DevTools in a browser, including the composite
   picker, the Pixel section and the Uniforms tab.
-- Try iOS, Android (Vulkan and OpenGL ES), Windows and Linux. Pixel reads
-  say when a renderer rounds them to 8 bits. The example app's gallery has a shader for
+- Try a physical iOS device (`tool/e2e_heatmap.py -d <device id>`: its
+  GPU, not the Mac's, draws the 32-bit float pixel), Android (Vulkan and
+  OpenGL ES), Windows and Linux. Pixel reads say when a renderer rounds them
+  to 8 bits. The example app's gallery has a shader for
   each: `lights.frag` (structs in an array), `checkerboard.frag` (a matrix,
   an `ivec2`, a `bool`) and `ripple.frag` (`out` parameters, a sampler).
 - After the MVP: iteration and call selectors for values in loops and

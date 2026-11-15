@@ -146,9 +146,11 @@ starts there: `lights[1] = Light(...)` selects `lights[1]`.
 Turn on **Select pixel mode**. An overlay covers the app and takes its clicks,
 like the inspector's Select Widget Mode: hovering a shader outlines it and
 frames the device pixel under the pointer, with its coordinates. Each click
-reads the selected value there, shown with nine significant digits. Press
-**Done** in the app, or the button in DevTools, to stop. You can also type
-coordinates: they are what `FlutterFragCoord()` returns at that pixel.
+reads the selected value there, shown with nine significant digits. On a
+phone, tap a pixel, or drag a finger to aim (the crosshair and coordinates
+follow it) and lift it to read. Press **Done** in the app, or the button in
+DevTools, to stop. You can also type coordinates: they are what
+`FlutterFragCoord()` returns at that pixel.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mohamedalsamrai/shader_debugger/main/doc/media/pixel-select.gif" width="640" alt="Select pixel mode in the example app: a crosshair follows the pointer over the gradient with its coordinates, and clicks leave a marker">
@@ -173,7 +175,9 @@ Turn on **Override** to drive one with sliders, or type exact values;
 | Platform | Status |
 |---|---|
 | macOS (Impeller) | Verified end to end, including exact float reads |
-| iOS, Android | Expected to work; not verified yet |
+| iOS simulator (Impeller, Metal) | Verified end to end, including exact float reads and touch picking |
+| iOS devices | Expected to work; not verified on hardware yet |
+| Android | Expected to work; not verified yet |
 | Windows, Linux | Expected to work; pixel reads may be rounded to 8 bits, and the page says so when they are |
 | Web | Not supported |
 
@@ -185,7 +189,7 @@ Requires Flutter 3.47 or later. Reports from other platforms are welcome.
   last write.
 - When reading a pixel, every invocation computes the same coordinate, so
   `dFdx`, `dFdy` and `fwidth` are 0.
-- A click is mapped through the render box that painted the shader. A painter
+- A click or tap is mapped through the render box that painted the shader. A painter
   that transforms the canvas before drawing is not accounted for; type the
   coordinates instead.
 - `ImageFilter.shader` and `BackdropFilter` shaders are not supported.

@@ -4,7 +4,8 @@ for trying the Shader Debugger extension without an IDE.
 Starts (and stops, by PID) only processes it owns:
   1. a Dart Tooling Daemon, with the repo as its IDE workspace root, so the
      extension may read and write files in it;
-  2. the example app, with `flutter run -d macos --machine`;
+  2. the example app, with `flutter run -d DEVICE --machine` (macOS unless
+     a device is given);
   3. a DevTools server connected to that daemon.
 
 Build the extension first (see CLAUDE.md). When the session is ready, this
@@ -13,8 +14,12 @@ session.json, which test/live_test.dart in packages/shader_debugger_devtools
 reads (SHADER_DEBUGGER_LIVE=<that file>). Stop with Ctrl+C, or by creating a
 file named `stop` next to session.json. The probe placeholder is restored.
 
-Usage, from the repo root:  python3 tool/devtools_session.py
+Usage, from the repo root:  python3 tool/devtools_session.py [-d DEVICE]
+
+DEVICE is what `flutter run -d` takes: `macos` (the default), or an iOS
+simulator or device by name or id (`flutter devices` lists them).
 """
+import argparse
 import json
 import os
 import queue
@@ -22,6 +27,10 @@ import subprocess
 import sys
 import threading
 import time
+
+arguments = argparse.ArgumentParser(description='A real DevTools session for the example app.')
+arguments.add_argument('-d', '--device', default='macos', help='as for flutter run -d (default: macos)')
+DEVICE = arguments.parse_args().device
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.join(ROOT, '.dart_tool', 'shader_debugger_session')
@@ -90,7 +99,7 @@ try:
     log('set_roots:', roots.stdout.strip(), roots.stderr.strip()[:300])
 
     # 2. The example app.
-    app, app_lines = start(['flutter', 'run', '-d', 'macos', '--machine'], cwd=EXAMPLE)
+    app, app_lines = start(['flutter', 'run', '-d', DEVICE, '--machine'], cwd=EXAMPLE)
     debug_port = wait_json(app_lines, lambda m: m.get('event') == 'app.debugPort')
     vm_uri = debug_port['params']['wsUri']
     app_id = debug_port['params']['appId']

@@ -28,7 +28,7 @@ package.
 | | |
 |---|---|
 | **Heatmaps of any value**<br>Click a line, pick a variable, and the app draws it instead of the color: scalars through a colormap, vectors as RG or RGB, and any column, element or field of a matrix, array or struct. | <img src="doc/media/devtools-inspect.png" width="420" alt="The Shader Debugger tab with d shown as a heatmap"> |
-| **Exact values at a pixel**<br>*Select pixel mode*, like the widget inspector's: hover the shader in the app, click a pixel, read the value as 32-bit floats. | <img src="doc/media/pixel-select.gif" width="420" alt="Select pixel mode: a crosshair follows the pointer with its coordinates"> |
+| **Exact values at a pixel**<br>*Select pixel mode*, like the widget inspector's: hover the shader in the app and click a pixel (on a phone, tap or drag a finger), and read the value as 32-bit floats. | <img src="doc/media/pixel-select.gif" width="420" alt="Select pixel mode: a crosshair follows the pointer with its coordinates"> |
 | **Live uniform overrides**<br>Every float uniform gets sliders; the app, the heatmap and pixel reads all use your values. | <img src="doc/media/uniforms.gif" width="420" alt="The gradient's color uniforms swept through hues"> |
 
 Your shaders stay untouched: the debugger instruments a copy, hot reloads it
@@ -70,6 +70,7 @@ flutter analyze
 (cd packages/shader_debugger/example && flutter test)        # the runtime, real shaders
 (cd packages/shader_debugger_devtools && flutter test)       # the extension
 python3 tool/e2e_heatmap.py                                  # end to end in the real app (macOS)
+python3 tool/e2e_heatmap.py -d <simulator id>                # the same on an iOS simulator
 ```
 
 To use your build of the extension, build it into the runtime package, then run
@@ -101,8 +102,9 @@ layer tree, so it needs no screen recording.
 
 ## Contributing
 
-Issues and pull requests are welcome. Reports from platforms other than macOS
-are especially useful: iOS, Android, Windows and Linux are not verified yet.
+Issues and pull requests are welcome. Reports from other platforms are
+especially useful: iOS devices, Android, Windows and Linux are not verified
+yet (macOS and the iOS simulator are).
 
 ## License
 

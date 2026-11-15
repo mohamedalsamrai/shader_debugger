@@ -46,7 +46,8 @@ resolves against the root `pubspec.lock`.
   the page; `lib/src/ports.dart` abstracts the app and the files, and
   `lib/src/devtools_ports.dart` implements them on DevTools' globals.
 - `tool/e2e_heatmap.py`: end-to-end check of the runtime through the real
-  Flutter tool on macOS (write probe, hot reload, service extensions).
+  Flutter tool, on macOS or, with `-d`, an iOS simulator or device (write
+  probe, hot reload, service extensions).
 - `tool/make_probe.dart`: prints the probe for a shader, line and
   expression, as the extension would write it.
 - `tool/readme_media.py` with `tool/media/media_app.dart`: records the
@@ -57,6 +58,7 @@ resolves against the root `pubspec.lock`.
   there with absolute GitHub URLs, so pub.dev can show them.
 - `tool/devtools_session.py`: a real DevTools session for the example (DTD
   with the repo as workspace root, `flutter run`, DevTools) without an IDE.
+  It takes `-d DEVICE` too.
 
 ## Commands
 
@@ -65,7 +67,10 @@ flutter pub get                       # at the root
 flutter analyze                       # at the root: analyzes every package
 (cd packages/shader_debugger_core && dart test)   # includes impellerc compile checks
 (cd packages/shader_debugger/example && flutter test)   # runtime, real shaders
-python3 tool/e2e_heatmap.py [SCREENSHOT_DIR]            # end to end, macOS
+python3 tool/e2e_heatmap.py [-d DEVICE] [SCREENSHOT_DIR]  # end to end, macOS
+# by default; -d takes what `flutter run -d` does, such as an iOS simulator id.
+# Use a simulator nothing else drives: iOS suspends a backgrounded app, and its
+# VM service then stops answering.
 # CI (.github/workflows/ci.yml) runs all of the above on macOS except the e2e,
 # plus the extension build and `pub publish --dry-run` for both packages.
 (cd packages/shader_debugger_devtools && flutter test)  # extension, with fakes

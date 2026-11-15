@@ -3,9 +3,9 @@
 // compiled by the Flutter tool and executed by the test engine.
 
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -468,10 +468,6 @@ void main() {
         isTrue,
       );
       await tester.pump();
-      expect(
-        find.text('Shader Debugger: click a pixel of $gradient'),
-        findsOneWidget,
-      );
 
       await tester.tapAt(const Offset(12.3, top + 1.7));
       await tester.tapAt(const Offset(31.2, top + 3.3));
@@ -517,6 +513,82 @@ void main() {
           ),
       );
       expect(events, isEmpty, reason: 'hovering picks nothing');
+    });
+
+    testWidgets('a finger shows the pixel under it, and picks where it lifts', (
+      tester,
+    ) async {
+      await pumpShaders(tester);
+      debugger.setPixelSelectMode(enabled: true, asset: gradient);
+      await tester.pump();
+      final finger = await tester.startGesture(const Offset(100, 100));
+      await finger.moveTo(const Offset(12.3, top + 1.7));
+      await tester.pump();
+
+      final layer = find.byWidgetPredicate(
+        (widget) =>
+            widget is CustomPaint &&
+            widget.painter.runtimeType.toString() == '_PixelSelectPainter',
+      );
+      expect(
+        tester.renderObject(layer),
+        paints
+          ..rect(rect: const Rect.fromLTRB(10.5, top + 0.5, 13.5, top + 3.5))
+          ..rect(
+            rect: Rect.fromCenter(
+              center: const Offset(12.25, top + 1.75),
+              width: 9,
+              height: 9,
+            ),
+          )
+          // The label goes above the finger, which would hide it below.
+          ..something(
+            (method, arguments) =>
+                method == #drawRRect &&
+                (arguments[0] as RRect).bottom <= top + 1.75 - 44,
+          ),
+      );
+      expect(events, isEmpty, reason: 'aiming picks nothing');
+
+      await finger.moveTo(const Offset(31.2, top + 3.3));
+      await finger.up();
+      await tester.pump();
+      expect(events, [
+        ['shader_debugger.pixelPicked', picked(1.25, 3.25, second)],
+      ]);
+      expect(appTaps, 0, reason: 'drags go to the debugger, not the app');
+    });
+
+    testWidgets(
+      'the banner says tap on phones and click on desktops',
+      (tester) async {
+        await pumpShaders(tester);
+        debugger.setPixelSelectMode(enabled: true, asset: gradient);
+        await tester.pump();
+        final verb = defaultTargetPlatform == TargetPlatform.iOS
+            ? 'tap'
+            : 'click';
+        expect(
+          find.text('Shader Debugger: $verb a pixel of $gradient'),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.iOS,
+        TargetPlatform.macOS,
+      }),
+    );
+
+    testWidgets('the banner stays clear of the home indicator', (tester) async {
+      // 34 logical pixels at a ratio of 2, as on an iPhone.
+      tester.view.padding = const FakeViewPadding(bottom: 68);
+      await pumpShaders(tester);
+      debugger.setPixelSelectMode(enabled: true, asset: gradient);
+      await tester.pump();
+      expect(
+        tester.getBottomLeft(find.text('Done')).dy,
+        lessThanOrEqualTo(300 - 34 - 24),
+      );
     });
 
     testWidgets("the overlay's Done button leaves select mode", (tester) async {

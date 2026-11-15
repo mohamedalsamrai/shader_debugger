@@ -1,3 +1,14 @@
+## Unreleased
+
+- iOS: verified end to end on the iOS simulator (Impeller, Metal): heatmaps,
+  exact 32-bit float pixel reads, uniform overrides and hot restart.
+- Select pixel mode works with touch: a finger shows the pixel under it, with
+  its coordinates above the finger, and picks it when it lifts, so a drag
+  can aim. A mouse also picks where its button is released.
+- The select mode banner says "tap" on iOS and Android, wraps the shader's
+  name onto a second line instead of cutting it off, and stays clear of
+  notches and the home indicator.
+
 ## 1.0.1
 
 - Fix: the Shader Debugger tab's side panel failed to build inside DevTools,
