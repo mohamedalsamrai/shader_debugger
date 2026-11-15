@@ -3,7 +3,8 @@ library;
 
 import 'dart:io';
 
-/// The target flags the Flutter tool passes for macOS and for Android
+/// The target flags the Flutter tool passes for macOS, and for Android,
+/// Windows and Linux, which share one set
 /// (`build_system/tools/shader_compiler.dart`).
 const impellercTargets = {
   'macOS': ['--sksl', '--runtime-stage-metal'],

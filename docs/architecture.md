@@ -396,7 +396,18 @@ needs a desktop session (or a simulator, with `-d`) and runs by hand.
 - Try a physical iOS device (`tool/e2e_heatmap.py -d <device id>`: its
   GPU, not the Mac's, draws the 32-bit float pixel), Android (Vulkan and
   OpenGL ES), Windows and Linux. Pixel reads say when a renderer rounds them
-  to 8 bits. The example app's gallery has a shader for
+  to 8 bits.
+  - Windows, checked from the Flutter 3.47 sources only: the engine draws
+    with Impeller by default, on OpenGL ES through ANGLE. Its RGBA32F
+    textures and render buffers, and its readback with `GL_FLOAT`, suggest
+    exact pixel reads. Shaders are compiled for `--sksl
+    --runtime-stage-gles --runtime-stage-gles3 --runtime-stage-vulkan`, the
+    same set as Android, and the corpus test compiles a probe at every
+    statement for it. The analyzer and the page handle CRLF files. The
+    example app has no `windows/` runner yet (`flutter create
+    --platforms=windows .` adds one).
+  - If a GPU cannot draw into a float image at all, `toByteData` throws and
+    `readPixel` fails instead of falling back to an 8-bit read. The example app's gallery has a shader for
   each: `lights.frag` (structs in an array), `checkerboard.frag` (a matrix,
   an `ivec2`, a `bool`) and `ripple.frag` (`out` parameters, a sampler).
 - After the MVP: iteration and call selectors for values in loops and

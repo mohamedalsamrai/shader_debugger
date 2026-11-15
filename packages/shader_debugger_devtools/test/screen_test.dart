@@ -225,6 +225,26 @@ void main() {
     expect(find.text(gradientAsset), findsOneWidget);
   });
 
+  testWidgets('shows a file with Windows line endings line by line', (
+    tester,
+  ) async {
+    // As git checks it out on Windows.
+    workspace.files[gradientFile] = gradientSource.replaceAll('\n', '\r\n');
+    app.runtime.value = true;
+    await pumpScreen(tester);
+    await tester.pumpAndSettle();
+    // No \r is left at the end of a line.
+    final line = find.text('  float d = length(uv - 0.5);');
+    expect(line, findsOneWidget);
+
+    await tester.tap(line);
+    await tester.pumpAndSettle();
+    expect(find.text('Line ${lineOf('float d =') + 1}'), findsOneWidget);
+    await tester.tap(find.text('Show heatmap'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Showing d (float, scalar)'), findsOneWidget);
+  });
+
   testWidgets('a failed connection can be retried', (tester) async {
     app.info = const AppInfo(
       protocolVersion: 99,

@@ -152,7 +152,8 @@ class _SourcePane extends StatelessWidget {
           ? const SizedBox()
           : const Center(child: CircularProgressIndicator());
     }
-    final lines = analysis.source.getText(0).split('\n');
+    // Line breaks as the analysis counts them: Windows checkouts use \r\n.
+    final lines = analysis.source.getText(0).split(RegExp(r'\r\n?|\n'));
     final pickable = controller.pickableLines;
     final notes = <int, List<String>>{};
     for (final diagnostic in analysis.diagnostics) {
@@ -313,7 +314,7 @@ class _InspectPanel extends StatelessWidget {
           Text('Line ${statement.line + 1}', style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
-            statement.span.text,
+            statement.span.text.replaceAll('\r\n', '\n'),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: theme.fixedFontStyle,

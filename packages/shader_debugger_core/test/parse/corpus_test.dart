@@ -1,6 +1,6 @@
 /// Real shaders: the example app's, and the Flutter SDK's own (read from the
 /// installed SDK, not copied). Each must analyze without problems, and a
-/// probe at every statement must compile with impellerc.
+/// probe at every statement must compile with impellerc, for every target.
 library;
 
 import 'dart:io';
@@ -44,57 +44,60 @@ void main() {
         expect(analysis.statements.where((s) => !s.isPickable), isEmpty);
       });
 
-      test(
-        'a probe at every statement compiles',
-        skip: missing != false ? missing : skipWithoutImpellerc,
-        () async {
-          final analysis = analyze();
-          final probes = <Probe>[];
-          // What the picker selects first: the written variable, down to
-          // the part written, or the first variable with a drawable part.
-          for (final statement in analysis.statements) {
-            final variable = [
-              ?statement.defaultPick,
-              ...statement.inScope,
-            ].where((v) => statement.defaultPath(v) != null).firstOrNull;
-            if (variable == null) continue;
-            probes.add(
-              instrument(
-                analysis,
-                CaptureRequest(
-                  statement: statement,
-                  variable: variable,
-                  path: statement.defaultPath(variable)!,
+      for (final target in impellercTargets.keys) {
+        test(
+          'a probe at every statement compiles for $target',
+          skip: missing != false ? missing : skipWithoutImpellerc,
+          () async {
+            final analysis = analyze();
+            final probes = <Probe>[];
+            // What the picker selects first: the written variable, down to
+            // the part written, or the first variable with a drawable part.
+            for (final statement in analysis.statements) {
+              final variable = [
+                ?statement.defaultPick,
+                ...statement.inScope,
+              ].where((v) => statement.defaultPath(v) != null).firstOrNull;
+              if (variable == null) continue;
+              probes.add(
+                instrument(
+                  analysis,
+                  CaptureRequest(
+                    statement: statement,
+                    variable: variable,
+                    path: statement.defaultPath(variable)!,
+                  ),
+                  stamp: statement.id,
                 ),
-                stamp: statement.id,
-              ),
-            );
-          }
-          expect(probes, isNotEmpty);
+              );
+            }
+            expect(probes, isNotEmpty);
 
-          final failures = <String>[];
-          const batch = 8;
-          for (var i = 0; i < probes.length; i += batch) {
-            await Future.wait([
-              for (final probe in probes.skip(i).take(batch))
-                compileShader(
-                  probe.source,
-                  directory: temp,
-                  name: '${file.uri.pathSegments.last}_${probe.stamp}',
-                ).then((result) {
-                  if (result.exitCode != 0) {
-                    final statement = probe.request.statement;
-                    failures.add(
-                      'line ${statement.line + 1} (${probe.request.expression}): '
-                      '${result.stderr}${result.stdout}',
-                    );
-                  }
-                }),
-            ]);
-          }
-          expect(failures, isEmpty, reason: '${probes.length} probes');
-        },
-      );
+            final failures = <String>[];
+            const batch = 8;
+            for (var i = 0; i < probes.length; i += batch) {
+              await Future.wait([
+                for (final probe in probes.skip(i).take(batch))
+                  compileShader(
+                    probe.source,
+                    directory: temp,
+                    name: '${file.uri.pathSegments.last}_${probe.stamp}',
+                    target: target,
+                  ).then((result) {
+                    if (result.exitCode != 0) {
+                      final statement = probe.request.statement;
+                      failures.add(
+                        'line ${statement.line + 1} (${probe.request.expression}): '
+                        '${result.stderr}${result.stdout}',
+                      );
+                    }
+                  }),
+              ]);
+            }
+            expect(failures, isEmpty, reason: '${probes.length} probes');
+          },
+        );
+      }
     });
   }
 }

@@ -8,6 +8,8 @@
 - The select mode banner says "tap" on iOS and Android, wraps the shader's
   name onto a second line instead of cutting it off, and stays clear of
   notches and the home indicator.
+- Windows: the Shader Debugger tab shows shaders checked out with CRLF line
+  endings without a stray `\r` at the end of every line.
 
 ## 1.0.1
 

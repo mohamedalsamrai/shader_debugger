@@ -16,13 +16,14 @@ file named `stop` next to session.json. The probe placeholder is restored.
 
 Usage, from the repo root:  python3 tool/devtools_session.py [-d DEVICE]
 
-DEVICE is what `flutter run -d` takes: `macos` (the default), or an iOS
-simulator or device by name or id (`flutter devices` lists them).
+DEVICE is what `flutter run -d` takes: `macos` (the default), `windows`, or
+an iOS simulator or device by name or id (`flutter devices` lists them).
 """
 import argparse
 import json
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -31,6 +32,9 @@ import time
 arguments = argparse.ArgumentParser(description='A real DevTools session for the example app.')
 arguments.add_argument('-d', '--device', default='macos', help='as for flutter run -d (default: macos)')
 DEVICE = arguments.parse_args().device
+# Batch files on Windows, which subprocess finds only by their paths.
+FLUTTER = shutil.which('flutter') or 'flutter'
+DART = shutil.which('dart') or 'dart'
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.join(ROOT, '.dart_tool', 'shader_debugger_session')
@@ -89,24 +93,24 @@ def wait_json(lines, predicate, timeout=300):
 
 try:
     # 1. Dart Tooling Daemon, with the repo as the workspace root.
-    dtd, dtd_lines = start(['dart', 'tooling-daemon', '--machine'])
+    dtd, dtd_lines = start([DART, 'tooling-daemon', '--machine'])
     details = wait_json(dtd_lines, lambda m: 'tooling_daemon_details' in m)['tooling_daemon_details']
     dtd_uri = details['uri']
     roots = subprocess.run(
-        ['dart', '--packages=' + os.path.join(ROOT, '.dart_tool', 'package_config.json'),
+        [DART, '--packages=' + os.path.join(ROOT, '.dart_tool', 'package_config.json'),
          os.path.join(ROOT, 'tool', 'set_dtd_roots.dart'), dtd_uri, ROOT],
         input=details['trusted_client_secret'] + '\n', capture_output=True, text=True)
     log('set_roots:', roots.stdout.strip(), roots.stderr.strip()[:300])
 
     # 2. The example app.
-    app, app_lines = start(['flutter', 'run', '-d', DEVICE, '--machine'], cwd=EXAMPLE)
+    app, app_lines = start([FLUTTER, 'run', '-d', DEVICE, '--machine'], cwd=EXAMPLE)
     debug_port = wait_json(app_lines, lambda m: m.get('event') == 'app.debugPort')
     vm_uri = debug_port['params']['wsUri']
     app_id = debug_port['params']['appId']
     wait_json(app_lines, lambda m: m.get('event') == 'app.started')
 
     # 3. DevTools, connected to our DTD.
-    devtools, devtools_lines = start(['dart', 'devtools', '--machine', '--no-launch-browser',
+    devtools, devtools_lines = start([DART, 'devtools', '--machine', '--no-launch-browser',
                                       '--port=0', '--dtd-uri=' + dtd_uri])
     started = wait_json(devtools_lines, lambda m: m.get('event') == 'server.started')['params']
     base = 'http://%s:%s' % (started['host'], started['port'])

@@ -62,6 +62,20 @@ void main() {
       expect(controller.appRoot, appRoot);
     });
 
+    test('finds the package directory under a Windows drive letter', () async {
+      final root = Uri.file(r'C:\work\app\', windows: true);
+      workspace.files
+        ..clear()
+        ..[root.resolve('pubspec.yaml')] = 'name: app\n'
+        ..[root.resolve(gradientAsset)] = gradientSource
+        ..[root.resolve(probeAsset)] = '// placeholder\n';
+      app.mainLibrary = root.resolve('lib/main.dart');
+      await connect();
+      expect(controller.appRoot, Uri.parse('file:///C:/work/app/'));
+      expect(controller.probeFile, root.resolve(probeAsset));
+      expect(controller.analysis, isNotNull);
+    });
+
     test('without file access, guesses the directory above lib/', () async {
       workspace.failWith = WorkspaceError.permissionDenied;
       await connect();

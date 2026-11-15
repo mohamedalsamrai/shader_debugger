@@ -178,7 +178,7 @@ Turn on **Override** to drive one with sliders, or type exact values;
 | iOS simulator (Impeller, Metal) | Verified end to end, including exact float reads and touch picking |
 | iOS devices | Expected to work; not verified on hardware yet |
 | Android | Expected to work; not verified yet |
-| Windows, Linux | Expected to work; pixel reads may be rounded to 8 bits, and the page says so when they are |
+| Windows, Linux | Expected to work; not verified yet. Probes are compiled for their shader targets in CI, and the page says when a pixel read was rounded to 8 bits |
 | Web | Not supported |
 
 Requires Flutter 3.47 or later. Reports from other platforms are welcome.

@@ -11,18 +11,20 @@ The placeholder probe is restored at the end.
 Usage, from the repo root:
     python3 tool/e2e_heatmap.py [-d DEVICE] [SCREENSHOT_DIR]
 
-DEVICE is what `flutter run -d` takes: `macos` (the default), or an iOS
-simulator or device by name or id (`flutter devices` lists them).
+DEVICE is what `flutter run -d` takes: `macos` (the default), `windows`, or
+an iOS simulator or device by name or id (`flutter devices` lists them).
 
 With SCREENSHOT_DIR, it also saves the app before and after the heatmap is
 shown: the window on macOS (needs the Screen Recording permission), the
-screen on an iOS simulator. Exits non-zero if a check fails.
+screen on an iOS simulator; not on other devices. Exits non-zero if a check
+fails.
 """
 import argparse
 import json
 import math
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -38,6 +40,8 @@ arguments.add_argument('-d', '--device', default='macos', help='as for flutter r
 arguments.add_argument('screenshots', nargs='?', metavar='SCREENSHOT_DIR')
 arguments = arguments.parse_args()
 SHOTS = arguments.screenshots
+# flutter is a batch file on Windows, which subprocess finds only by its path.
+FLUTTER = shutil.which('flutter') or 'flutter'
 
 placeholder = open(PROBE).read()
 golden = open(GOLDEN).read()
@@ -51,7 +55,7 @@ def check(label, ok, detail):
 
 
 proc = subprocess.Popen(
-    ['flutter', 'run', '-d', arguments.device, '--machine'],
+    [FLUTTER, 'run', '-d', arguments.device, '--machine'],
     cwd=EXAMPLE, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT, text=True, bufsize=1)
 events = queue.Queue()
@@ -124,9 +128,10 @@ def screenshot(name):
     path = os.path.join(SHOTS, name)
     if device_id != 'macos':
         # An iOS simulator, by its id; other devices fail here.
-        shot = subprocess.run(['xcrun', 'simctl', 'io', device_id or '', 'screenshot', path],
-                              capture_output=True, text=True)
-        print('      screenshot: ' + path if shot.returncode == 0
+        shot = shutil.which('xcrun') and subprocess.run(
+            ['xcrun', 'simctl', 'io', device_id or '', 'screenshot', path],
+            capture_output=True, text=True)
+        print('      screenshot: ' + path if shot and shot.returncode == 0
               else '      (no screenshot: only macOS and iOS simulators are captured)')
         return
     script = ('ObjC.import("CoreGraphics");'
