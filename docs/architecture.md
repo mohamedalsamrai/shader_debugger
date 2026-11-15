@@ -351,7 +351,7 @@ and the iOS simulator with Impeller (`tool/e2e_heatmap.py`).
 
 ## Status
 
-Released as 1.0.0 (protocol version 5). Verified on macOS and the iOS
+Released as 1.1.0 (protocol version 5). Verified on macOS and the iOS
 simulator with Impeller (Metal); physical iOS devices, Android, Windows and
 Linux are untested so far. CI
 (`.github/workflows/ci.yml`) runs the analyzer, the formatter, every test,

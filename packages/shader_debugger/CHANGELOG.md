@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.0
 
 - iOS: verified end to end on the iOS simulator (Impeller, Metal): heatmaps,
   exact 32-bit float pixel reads, uniform overrides and hot restart.
